@@ -1,0 +1,16 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+
+# PyInstaller
+dist/
+build/
+
+# Virtual environment
+.venv/
+
+# Mypy cache
+.mypy_cache
+
+# VSCode
+.vscode/
