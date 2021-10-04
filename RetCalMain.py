@@ -12,8 +12,6 @@ from RetCalui import Ui_MainWindow
 from decimal import Decimal
 
 
-ui=None
-
 #Start Raft
 #def raft (file,xpos,ypos,ps,eValueresult,lh):
 #    return file,xpos,ypos
@@ -23,10 +21,7 @@ ui=None
 
 #Start Gcode
  
-def gengcode ():
-    global ui
-    
-
+def gen_gcode(ui: Ui_MainWindow):
     name = QtWidgets.QFileDialog.getSaveFileName(ui.centralwidget, 'Save Gcode', filter="(*.gcode)")
     if len(name[0])>0:
         
@@ -517,14 +512,24 @@ def gengcode ():
 
         file.close()
 
+def main():
+    import sys
+    
+    app = QtWidgets.QApplication(sys.argv)
+    MainWindow = QtWidgets.QMainWindow()
+    
+    ui = Ui_MainWindow()
+    ui.setupUi(MainWindow)
+    def _gen_gcode():
+        """Wrapper for gen_gcode()"""
+        return gen_gcode(ui)
+
+    ui.genGcode.clicked.connect(_gen_gcode)
+    MainWindow.show()
+    
+    sys.exit(app.exec_())
+
 
 
 if __name__ == "__main__":
-    import sys
-    app = QtWidgets.QApplication(sys.argv)
-    MainWindow = QtWidgets.QMainWindow()
-    ui = Ui_MainWindow()
-    ui.setupUi(MainWindow)
-    ui.genGcode.clicked.connect(gengcode)
-    MainWindow.show()
-    sys.exit(app.exec_())
+    main()
