@@ -22,6 +22,37 @@ class GcodeConfig:
     nt: int
 
 
+def retraction_distance_diagram(
+    start_distance: float, increment: float
+) -> list[str]:
+    """Create a top-down diagram of the retraction distances."""
+    retraction_dists = [round(Decimal(start_distance + increment * i), 2) for i in range(16)]
+
+    return [
+        "Retraction Distance from the top looking down",
+        "",
+        # Add top row of numbers
+        " "*10 + "  ".join(f"{dist:<6.2f}" for dist in retraction_dists[11 : 8-1 : -1]),
+        # Print top row of bars
+        " "*10 + f"{'|':8}"*4,
+        # Side rows
+        f"{retraction_dists[12]:6.2f} -  " + " "*32 +f"- {retraction_dists[7]:<6.2f}",
+        "",
+        "",
+        f"{retraction_dists[13]:6.2f} -  " + " "*32 +f"- {retraction_dists[6]:<6.2f}",
+        "",
+        "",
+        f"{retraction_dists[14]:6.2f} -  " + " "*32 +f"- {retraction_dists[5]:<6.2f}",
+        "",
+        "",
+        f"{retraction_dists[15]:6.2f} -  " + " "*32 +f"- {retraction_dists[4]:<6.2f}",
+        "",
+        # Print bottom row of bars
+        " "*10 + f"{'|':8}"*4,
+        # Print bottom for of numbers
+        " "*10 + "  ".join(f"{dist:<6.2f}" for dist in retraction_dists[:4]),
+    ]
+
 def button_clicked(ui: Ui_MainWindow):
     name = QtWidgets.QFileDialog.getSaveFileName(
         ui.centralwidget,
@@ -53,29 +84,15 @@ def button_clicked(ui: Ui_MainWindow):
     )
     
     # Array of retraction distances
-    retraction_dist = [round(Decimal(cfg.srd + cfg.ird * i), 2) for i in range(16)]
     
-    file.write(f";Calibration Generator 1.3.3\n")
+    title_str = "Calibration Generator 1.3.3"
+    file.write(f";{title_str}\n")
     file.write(f";\n")
     file.write(f";\n")
-    file.write(f";Retraction Distance from the top looking down\n")
-    file.write(f";\n")
-    file.write(f";       {retraction_dist[11]}    {retraction_dist[10]}    {retraction_dist[9]}    {retraction_dist[8]}\n")
-    file.write(f";		|		|		|		|\n")
-    file.write(f";\n")
-    file.write(f";{retraction_dist[12]}-                               -{retraction_dist[7]}\n")
-    file.write(f";\n")
-    file.write(f";\n")
-    file.write(f";{retraction_dist[13]}-                               -{retraction_dist[6]}\n")
-    file.write(f";\n")
-    file.write(f";\n")
-    file.write(f";{retraction_dist[14]}-                               -{retraction_dist[5]}\n")
-    file.write(f";\n")
-    file.write(f";\n")
-    file.write(f";{retraction_dist[15]}-                               -{retraction_dist[4]}\n")
-    file.write(f";\n")
-    file.write(f";		|		|		|		|\n")
-    file.write(f";       {retraction_dist[0]}    {retraction_dist[1]}    {retraction_dist[2]}    {retraction_dist[3]}\n")
+
+    diagram_str = retraction_distance_diagram(cfg.srd, cfg.ird)
+    for s in diagram_str:
+        file.write(f";{s}\n")
     file.write(f";\n")
     file.write(f";\n")
 
@@ -524,3 +541,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    
