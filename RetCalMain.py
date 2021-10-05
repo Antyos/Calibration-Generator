@@ -91,6 +91,27 @@ def variables_by_height(config: GcodeConfig) -> list[str]:
     # Strip trailing spaces and return
     return [s.strip() for s in _str]
 
+def start_gcode(config) -> list[str]:
+    """Gcode to start a print """
+    return [
+        "; Start Gcode",
+        f"M140 S{int(config.bed_temp)}",
+        "M105",
+        f"M190 S{int(config.bed_temp)}",
+        f"M104 S{int(config.hotend_temp_init)}",
+        "M105",
+        f"M109 S{int(config.hotend_temp_init)}",
+        "M82",
+        "G28",
+        "G92 E0",
+        "G1 F200 E1",
+        "G92 E0",
+        f"{config.custom_gcode}",
+        ";",
+        ";",
+    ]
+
+
 def button_clicked(ui: Ui_MainWindow):
     name = QtWidgets.QFileDialog.getSaveFileName(
         ui.centralwidget,
@@ -155,22 +176,8 @@ def button_clicked(ui: Ui_MainWindow):
         file.write(f";{key} = {value}\n")
     file.write(f";\n;\n")
 
-    #start Gcode
-    file.write(f";Start Gcode\n")
-    file.write(f"M140 S{int(cfg.bed_temp)}\n")
-    file.write(f"M105\n")
-    file.write(f"M190 S{int(cfg.bed_temp)}\n")
-    file.write(f"M104 S{int(cfg.hotend_temp_init)}\n")
-    file.write(f"M105\n")
-    file.write(f"M109 S{int(cfg.hotend_temp_init)}\n")
-    file.write(f"M82\n")
-    file.write(f"G28\n")
-    file.write(f"G92 E0\n")
-    file.write(f"G1 F200 E1\n")
-    file.write(f"G92 E0\n")
-    file.write(f"{cfg.custom_gcode}\n")
-    file.write(f";\n")
-    file.write(f";\n")
+    # Print out starting gcode
+    file.write("\n".join(start_gcode(cfg)) + "\n")
 
     xpos = cfg.bed_shape_x/2-30
     ypos = cfg.bed_shape_y/2-30
