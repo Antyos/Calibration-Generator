@@ -111,6 +111,68 @@ def start_gcode(config) -> list[str]:
         ";",
     ]
 
+def raft_gcode(config) -> list[str]:
+    """Generate raft Gcode"""
+    xpos = config.bed_shape_x/2-30
+    ypos = config.bed_shape_y/2-30
+    zpos = config.layer_height
+    epos = 0
+
+    gcode = [
+        "; Start Movement",
+        ";",
+        "G1 Z2",
+        f"G1 F{config.travel_speed} X{xpos} Y{ypos} Z{zpos}",
+        ";",
+    ]
+    #Overextruding Raft
+    e_raft = config.get_e_value(60)
+
+    remx = xpos
+    remy = ypos
+
+
+    #Horizontal
+    gcode.append('; Layer 1')
+    for _ in range(30):
+        epos += e_raft
+        gcode.append(f"G1 F{config.print_speed//2} X{xpos+60} Y{ypos} E{epos:.5f}")
+        xpos += 60
+        epos += e_raft
+        gcode.append(f"G0 F{config.travel_speed} X{xpos} Y{ypos+1}")
+        ypos += 1
+        gcode.append(f"G1 F{config.print_speed//2} X{xpos-60} Y{ypos} E{epos:.5f}")
+        xpos -= 60
+        epos += e_raft
+        gcode.append(f"G0 F{config.travel_speed} X{xpos} Y{ypos+1}")
+        ypos += 1
+
+    #Bring back to raft origin
+    gcode.append(f"G0 F{config.travel_speed} X{xpos} Y{ypos} Z{config.layer_height*3:.2f}")
+    gcode.append(f"G0 F{config.travel_speed} X{remx} Y{remy} Z{config.layer_height+config.layer_height}")
+    xpos = remx
+    ypos = remy
+
+    #Vertical
+    gcode.append(';Layer 2')
+    for _ in range(30):
+        epos += e_raft
+        gcode.append(f"G1 F{config.print_speed//2} X{xpos} Y{ypos+60} E{epos:.5f}")
+        ypos += 60
+        epos += e_raft
+        gcode.append(f"G0 F{config.travel_speed} X{xpos+1} Y{ypos}")
+        xpos += 1
+        gcode.append(f"G1 F{config.print_speed//2} X{xpos} Y{ypos-60} E{epos:.5f}")
+        ypos -= 60
+        epos += e_raft
+        gcode.append(f"G0 F{config.travel_speed} X{xpos+1} Y{ypos}")
+        xpos += 1
+
+    #Bring back to Calibration Starting Position
+    gcode.append(f"G0 F{config.travel_speed} X{remx+5} Y{remy+5} Z{config.layer_height*3:.2f}")
+
+    return gcode
+
 
 def button_clicked(ui: Ui_MainWindow):
     name = QtWidgets.QFileDialog.getSaveFileName(
@@ -178,70 +240,9 @@ def button_clicked(ui: Ui_MainWindow):
 
     # Print out starting gcode
     file.write("\n".join(start_gcode(cfg)) + "\n")
-
-    xpos = cfg.bed_shape_x/2-30
-    ypos = cfg.bed_shape_y/2-30
-    zpos = cfg.layer_height
-    epos = 0
-
-    #Start Movement
-    file.write(f";Start Movement\n")
-    file.write(f";\n")
-    file.write(f"G1 Z2\n")
-    file.write(f"G1 F{cfg.travel_speed} X{xpos} Y{ypos} Z{zpos}\n")
-    file.write(f";\n")
-    eValueresult = cfg.get_e_value(60)
-
-    #Overextruding Raft
-    evalueincrease = eValueresult*1.25
-    eValueresult = evalueincrease
-
-
-    remx = xpos
-    remy = ypos
-
-    file.write(f";Layer 1\n")
-
-    #Horizontal
-
-    for loopx in range(30):
-        file.write(f"G1 F{cfg.print_speed//2} X{xpos+60} Y{ypos} E{round(Decimal(eValueresult),5)}\n")
-        xpos = xpos + 60
-        eValueresult = eValueresult + evalueincrease
-        file.write(f"G0 F{cfg.travel_speed} X{xpos} Y{ypos+1}\n")
-        ypos = ypos + 1
-        file.write(f"G1 F{cfg.print_speed//2} X{xpos-60} Y{ypos} E{round(Decimal(eValueresult),5)}\n")
-        xpos = xpos - 60
-        eValueresult = eValueresult + evalueincrease
-        file.write(f"G0 F{cfg.travel_speed} X{xpos} Y{ypos+1}\n")
-        ypos = ypos + 1
-
-    #Bring back to raft origin
-
-    file.write(f"G0 F{cfg.travel_speed} X{xpos} Y{ypos} Z{round(Decimal(cfg.layer_height*3),2)}\n")
-    file.write(f"G0 F{cfg.travel_speed} X{remx} Y{remy} Z{cfg.layer_height+cfg.layer_height}\n")
-    xpos = remx
-    ypos = remy
-
-    file.write(f";Layer 2\n")
-
-    #Vertical
-
-    for loopx in range(30):
-        file.write(f"G1 F{cfg.print_speed//2} X{xpos} Y{ypos+60} E{round(Decimal(eValueresult),5)}\n")
-        ypos = ypos + 60
-        eValueresult = eValueresult + evalueincrease
-        file.write(f"G0 F{cfg.travel_speed} X{xpos+1} Y{ypos}\n")
-        xpos = xpos + 1
-        file.write(f"G1 F{cfg.print_speed//2} X{xpos} Y{ypos-60} E{round(Decimal(eValueresult),5)}\n")
-        ypos = ypos - 60
-        eValueresult = eValueresult + evalueincrease
-        file.write(f"G0 F{cfg.travel_speed} X{xpos+1} Y{ypos}\n")
-        xpos = xpos + 1
-
-    #Bring back to Calibration Starting Position
-
-    file.write(f"G0 F{cfg.travel_speed} X{remx+5} Y{remy+5} Z{round(Decimal(cfg.layer_height*3),2)}\n")
+    
+    # Write raft gcode to file
+    file.write("\n".join(raft_gcode(cfg)) + "\n")
 
     #Relative Movements
 
