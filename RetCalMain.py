@@ -53,6 +53,27 @@ def retraction_distance_diagram(
         " "*10 + "  ".join(f"{dist:<6.2f}" for dist in retraction_dists[:4]),
     ]
 
+def variables_by_height(config: GcodeConfig) -> list[str]:
+    """Get a string containing variables listed by height"""
+    # Header
+    _str = [
+        "Variables by Height",
+        "",
+        f"{'Num':15}{'Retraction':12}{'Nozzle':12}{'Fan':12}",
+        f"{'Layers':15}{'Speed':12}{'Temp':12}{'Speed':12}",
+        "",
+    ]
+
+    # Rows
+    for test in range(config.nt):
+        _str.append(
+            f"{config.lt:15}{config.srs+config.irs*test:12.2}"
+            + f"{config.tsh+config.tih*test:12.2}{config.fs+config.fsi*test:12.2}"
+        )
+
+    # Strip trailing spaces and return
+    return [s.strip() for s in _str]
+
 def button_clicked(ui: Ui_MainWindow):
     name = QtWidgets.QFileDialog.getSaveFileName(
         ui.centralwidget,
@@ -87,28 +108,17 @@ def button_clicked(ui: Ui_MainWindow):
     
     title_str = "Calibration Generator 1.3.3"
     file.write(f";{title_str}\n")
-    file.write(f";\n")
-    file.write(f";\n")
+    file.write(f";\n;\n")
 
+    # Print retraction distance diagram
     diagram_str = retraction_distance_diagram(cfg.srd, cfg.ird)
     for s in diagram_str:
         file.write(f";{s}\n")
-    file.write(f";\n")
-    file.write(f";\n")
+    file.write(f";\n;\n")
 
-
-    file.write(f";Variables by Height\n")
-    file.write(f";\n")
-    file.write(f";Height         Retraction  Nozzle      Fan\n")
-    file.write(f";               Speed       Temp        Speed\n")
-    file.write(f";\n")
-
-    cnt = cfg.nt-1
-
-    for loopx in range(cfg.nt):
-        file.write(f";{cfg.lt} layers      {round(Decimal(cfg.srs+cfg.irs*cnt),2)}      {round(Decimal(cfg.tsh+cfg.tih*cnt),2)}      {round(Decimal(cfg.fs+cfg.fsi*cnt),2)}\n")
-        cnt = cnt-1
-
+    # Print variables by height
+    for s in variables_by_height(cfg):
+        file.write(f";{s}\n")
 
     dx = float(ui.dimensionX.text())
     dy = float(ui.dimensionY.text())
@@ -122,8 +132,8 @@ def button_clicked(ui: Ui_MainWindow):
     sgcode = str(ui.customGcode.toPlainText())
 
 
-    file.write(f";\n")
-    file.write(f";\n")
+    # Use dataclasses.todict()
+    file.write(f";\n;\n")
     file.write(f";All inputs\n")
     file.write(f";\n")
     file.write(f";Dimension X 					{int(dx)}\n")
@@ -144,8 +154,7 @@ def button_clicked(ui: Ui_MainWindow):
     file.write(f";Extrusion Multiplier 			{em}\n")
     file.write(f";Layers Per Test                {cfg.lt}\n")
     file.write(f";Number of Tests                {cfg.nt}\n")
-    file.write(f";\n")
-    file.write(f";\n")
+    file.write(f";\n;\n")
 
 
     # Generate E Value  https://3dprinting.stackexchange.com/questions/10171/how-is-e-value-calculated-in-slic3r
