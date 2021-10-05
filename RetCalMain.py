@@ -498,22 +498,17 @@ def button_clicked(ui: Ui_MainWindow):
         loopbigcount = loopbigcount +1
 
 
-    #End Game
-
-    #Raise 5mm
-    file.write(f"G1 Z5\n")
-    #Absolute Position
-    file.write(f"G90\n")
-    #Home X Y
-    file.write(f"G28 X0 Y0\n")
-    #Turn off Steppers
-    file.write(f"M84\n")
-    #Turn off Fan
-    file.write(f"M107\n")
-    #Turn off Hotend
-    file.write(f"M104 S0\n")
-    #Turn off Bed
-    file.write(f"M140 S0\n")
+    # Ending Gcode
+    end_gcode = [
+        "G1 Z5",  #Raise 5mm
+        "G90",  # Absolute Position
+        "G28 X0 Y0",  # Home X Y
+        "M84",  # Turn off Steppers
+        "M107",  # Turn off Fan
+        "M104 S0",  # Turn off Hotend
+        "M140 S0",  #Turn off Bed
+    ]
+    file.write("\n".join(end_gcode))
 
     file.close()
 
