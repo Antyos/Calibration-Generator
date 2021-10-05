@@ -14,15 +14,15 @@ class GcodeConfig:
     retraction_speed_delta: float
     hotend_temp_init: float
     hotend_temp_change: float
-    fan_speed_init: float
-    fan_speed_delta: float
+    fan_speed_init: int
+    fan_speed_delta: int
     layer_height: float
-    travel_speed: float
     layers_per_test: int
     num_tests: int
     bed_shape_x: float
     bed_shape_y: float
-    print_speed: float
+    print_speed: int
+    travel_speed: int
     nozzle_diameter: float
     dilament_diameter: float
     extrusion_multiplier: float
@@ -134,16 +134,16 @@ def button_clicked(ui: Ui_MainWindow):
         retraction_speed_delta=float(ui.incrementRetractionspeed.text()),
         hotend_temp_init=float(ui.tempStarthotend.text()),
         hotend_temp_change=float(ui.tempIncrementhotend.text()),
-        fan_speed_init=float(ui.speedFan.text()),
-        fan_speed_delta=float(ui.speedFanIncrement.text()),
+        fan_speed_init=int(ui.speedFan.text()),
+        fan_speed_delta=int(ui.speedFanIncrement.text()),
         layer_height=float(ui.layerHeight.text()),
-        travel_speed=float(ui.speedTravel.text()),
         layers_per_test=int(ui.layersTest.text()),
         num_tests=int(ui.NumTests.text()),
         # Printer parameters
         bed_shape_x=float(ui.dimensionX.text()),
         bed_shape_y=float(ui.dimensionY.text()),
-        print_speed=float(ui.printSpeed.text()),
+        print_speed=int(ui.printSpeed.text()),
+        travel_speed=int(ui.speedTravel.text()),
         nozzle_diameter=float(ui.nozzleDiameter.text()),
         dilament_diameter=float(ui.filamentDiameter.text()),
         extrusion_multiplier=float(ui.extrusionMultiplier.text()),
