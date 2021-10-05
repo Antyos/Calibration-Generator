@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 
 from PyQt5 import QtCore, QtGui, QtWidgets
 from RetCalui import Ui_MainWindow
@@ -20,7 +20,24 @@ class GcodeConfig:
     ts: float
     lt: int
     nt: int
+    dx: float
+    dy: float
+    ps: float
+    nd: float
+    fd: float
+    em: float
+    tb: float
+    sgcode: str
 
+    def get_e_value(self, extrusion_length):
+        """Generate an E value for an extrusion length.
+        
+        See Also
+        --------
+        https://3dprinting.stackexchange.com/questions/10171/how-is-e-value-calculated-in-slic3r
+        """
+        area = (self.nd - self.lh) * self.lh + 3.14159 * (self.lh/2)**2
+        return (area * extrusion_length * 4)/(3.14159 * self.fd **2/ self.em)
 
 def retraction_distance_diagram(
     start_distance: float, increment: float
@@ -102,6 +119,16 @@ def button_clicked(ui: Ui_MainWindow):
         ts = float(ui.speedTravel.text()),
         lt = int(ui.layersTest.text()),
         nt = int(ui.NumTests.text()),
+        # Printer parameters
+        dx = float(ui.dimensionX.text()),
+        dy = float(ui.dimensionY.text()),
+        ps = float(ui.printSpeed.text()),
+        nd = float(ui.nozzleDiameter.text()),
+        fd = float(ui.filamentDiameter.text()),
+        em = float(ui.extrusionMultiplier.text()),
+        tb = float(ui.tempBed.text()),
+        # Custom Gcode
+        sgcode = str(ui.customGcode.toPlainText()),
     )
     
     # Array of retraction distances
@@ -120,62 +147,19 @@ def button_clicked(ui: Ui_MainWindow):
     for s in variables_by_height(cfg):
         file.write(f";{s}\n")
 
-    dx = float(ui.dimensionX.text())
-    dy = float(ui.dimensionY.text())
-    ps = float(ui.printSpeed.text())
-    nd = float(ui.nozzleDiameter.text())
-    fd = float(ui.filamentDiameter.text())
-    em = float(ui.extrusionMultiplier.text())
-    tb = float(ui.tempBed.text())
-
-    # Custom Gcode
-    sgcode = str(ui.customGcode.toPlainText())
-
-
-    # Use dataclasses.todict()
+    # Print variables
     file.write(f";\n;\n")
-    file.write(f";All inputs\n")
+    file.write(f"; All inputs\n")
     file.write(f";\n")
-    file.write(f";Dimension X 					{int(dx)}\n")
-    file.write(f";Dimension Y 					{int(dy)}\n")
-    file.write(f";Starting Retraction Distance	{cfg.srd}\n")
-    file.write(f";Increment Retraction 			{cfg.ird}\n")
-    file.write(f";Start Retraction Speed 		{cfg.srs}\n")
-    file.write(f";Retraction Speed Increment 	{cfg.irs}\n")
-    file.write(f";Print Speed 					{ps}\n")
-    file.write(f";Starting Temp 					{int(cfg.tsh)}\n")
-    file.write(f";Increment Temp 				{int(cfg.tih)}\n")
-    file.write(f";Bed Temp 						{int(tb)}\n")
-    file.write(f";Fan Speed 						{int(cfg.fs)}\n")
-    file.write(f";Fan Speed Increment 			{int(cfg.fsi)}\n")
-    file.write(f";Nozzle Diameter 				{nd}\n")
-    file.write(f";Layer Height 					{cfg.lh}\n")
-    file.write(f";Filament Diameter 				{fd}\n")
-    file.write(f";Extrusion Multiplier 			{em}\n")
-    file.write(f";Layers Per Test                {cfg.lt}\n")
-    file.write(f";Number of Tests                {cfg.nt}\n")
+    for key, value in asdict(cfg).values():
+        file.write(f";{key} = {value}\n")
     file.write(f";\n;\n")
-
-
-    # Generate E Value  https://3dprinting.stackexchange.com/questions/10171/how-is-e-value-calculated-in-slic3r
-
-    def eValue ( extrusionLength ):
-
-        diameterNozzle = float(ui.nozzleDiameter.text())
-        heightLayer = float(ui.layerHeight.text())
-        diameterFilament = float(ui.filamentDiameter.text())
-        multiplierExtrusion = float(ui.extrusionMultiplier.text())
-
-        area = (diameterNozzle - heightLayer) * heightLayer + 3.14159 * (heightLayer/2)**2
-        eValueresult = (area * extrusionLength * 4)/(3.14159 * diameterFilament**2/multiplierExtrusion)
-        return eValueresult
-
 
     #start Gcode
     file.write(f";Start Gcode\n")
-    file.write(f"M140 S{int(tb)}\n")
+    file.write(f"M140 S{int(cfg.tb)}\n")
     file.write(f"M105\n")
-    file.write(f"M190 S{int(tb)}\n")
+    file.write(f"M190 S{int(cfg.tb)}\n")
     file.write(f"M104 S{int(cfg.tsh)}\n")
     file.write(f"M105\n")
     file.write(f"M109 S{int(cfg.tsh)}\n")
@@ -184,18 +168,14 @@ def button_clicked(ui: Ui_MainWindow):
     file.write(f"G92 E0\n")
     file.write(f"G1 F200 E1\n")
     file.write(f"G92 E0\n")
-
-    file.write(f"{sgcode}\n")
-
+    file.write(f"{cfg.sgcode}\n")
     file.write(f";\n")
     file.write(f";\n")
 
-    xpos = dx/2-30
-    ypos = dy/2-30
+    xpos = cfg.dx/2-30
+    ypos = cfg.dy/2-30
     zpos = cfg.lh
     epos = 0
-
-
 
     #Start Movement
     file.write(f";Start Movement\n")
@@ -203,7 +183,7 @@ def button_clicked(ui: Ui_MainWindow):
     file.write(f"G1 Z2\n")
     file.write(f"G1 F{int(cfg.ts)*60} X{xpos} Y{ypos} Z{zpos}\n")
     file.write(f";\n")
-    eValueresult = eValue(60)
+    eValueresult = cfg.get_e_value(60)
 
     #Overextruding Raft
     evalueincrease = eValueresult*1.25
@@ -218,12 +198,12 @@ def button_clicked(ui: Ui_MainWindow):
     #Horizontal
 
     for loopx in range(30):
-        file.write(f"G1 F{int(ps*60/2)} X{xpos+60} Y{ypos} E{round(Decimal(eValueresult),5)}\n")
+        file.write(f"G1 F{int(cfg.ps*60/2)} X{xpos+60} Y{ypos} E{round(Decimal(eValueresult),5)}\n")
         xpos = xpos + 60
         eValueresult = eValueresult + evalueincrease
         file.write(f"G0 F{int(cfg.ts)*60} X{xpos} Y{ypos+1}\n")
         ypos = ypos + 1
-        file.write(f"G1 F{int(ps*60/2)} X{xpos-60} Y{ypos} E{round(Decimal(eValueresult),5)}\n")
+        file.write(f"G1 F{int(cfg.ps*60/2)} X{xpos-60} Y{ypos} E{round(Decimal(eValueresult),5)}\n")
         xpos = xpos - 60
         eValueresult = eValueresult + evalueincrease
         file.write(f"G0 F{int(cfg.ts)*60} X{xpos} Y{ypos+1}\n")
@@ -241,12 +221,12 @@ def button_clicked(ui: Ui_MainWindow):
     #Vertical
 
     for loopx in range(30):
-        file.write(f"G1 F{int(ps*60/2)} X{xpos} Y{ypos+60} E{round(Decimal(eValueresult),5)}\n")
+        file.write(f"G1 F{int(cfg.ps*60/2)} X{xpos} Y{ypos+60} E{round(Decimal(eValueresult),5)}\n")
         ypos = ypos + 60
         eValueresult = eValueresult + evalueincrease
         file.write(f"G0 F{int(cfg.ts)*60} X{xpos+1} Y{ypos}\n")
         xpos = xpos + 1
-        file.write(f"G1 F{int(ps*60/2)} X{xpos} Y{ypos-60} E{round(Decimal(eValueresult),5)}\n")
+        file.write(f"G1 F{int(cfg.ps*60/2)} X{xpos} Y{ypos-60} E{round(Decimal(eValueresult),5)}\n")
         ypos = ypos - 60
         eValueresult = eValueresult + evalueincrease
         file.write(f"G0 F{int(cfg.ts)*60} X{xpos+1} Y{ypos}\n")
@@ -263,8 +243,8 @@ def button_clicked(ui: Ui_MainWindow):
 
     #Start Calibration
 
-    eValueresult = eValue(10)
-    corenermarker = eValue(1)
+    eValueresult = cfg.get_e_value(10)
+    corenermarker = cfg.get_e_value(1)
 
     loopbigcount = 0
     loopsmallcount = 0
@@ -283,123 +263,123 @@ def button_clicked(ui: Ui_MainWindow):
         file.write(f";Layer {layer}\n")
 
         #Layer Marker Bottom Left
-        file.write(f"G1 F{int(ps*60)} X-2 E{round(Decimal(corenermarker),5)}\n")
-        file.write(f"G1 F{int(ps*60)} Y-2 E{round(Decimal(corenermarker),5)}\n")
-        file.write(f"G1 F{int(ps*60)} X2 E{round(Decimal(corenermarker),5)}\n")
-        file.write(f"G1 F{int(ps*60)} Y2 E{round(Decimal(corenermarker),5)}\n")
+        file.write(f"G1 F{int(cfg.ps*60)} X-2 E{round(Decimal(corenermarker),5)}\n")
+        file.write(f"G1 F{int(cfg.ps*60)} Y-2 E{round(Decimal(corenermarker),5)}\n")
+        file.write(f"G1 F{int(cfg.ps*60)} X2 E{round(Decimal(corenermarker),5)}\n")
+        file.write(f"G1 F{int(cfg.ps*60)} Y2 E{round(Decimal(corenermarker),5)}\n")
 
 
         #Begin
 
         #Bottom
-        file.write(f"G1 F{int(ps*60)} X10 E{round(Decimal(eValueresult),5)}\n")
+        file.write(f"G1 F{int(cfg.ps*60)} X10 E{round(Decimal(eValueresult),5)}\n")
         file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*0),2) * -1} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
         file.write(f"G0 F{int(cfg.ts)*60} Y-10\n")
         file.write(f"G0 F{int(cfg.ts)*60} Y10\n")
         file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*0),2)} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
-        file.write(f"G1 F{int(ps*60)} X10 E{round(Decimal(eValueresult),5)}\n")
+        file.write(f"G1 F{int(cfg.ps*60)} X10 E{round(Decimal(eValueresult),5)}\n")
         file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*1),2) * -1} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
         file.write(f"G0 F{int(cfg.ts)*60} Y-10\n")
         file.write(f"G0 F{int(cfg.ts)*60} Y10\n")
         file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*1),2)} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
-        file.write(f"G1 F{int(ps*60)} X10 E{round(Decimal(eValueresult),5)}\n")
+        file.write(f"G1 F{int(cfg.ps*60)} X10 E{round(Decimal(eValueresult),5)}\n")
         file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*2),2) * -1} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
         file.write(f"G0 F{int(cfg.ts)*60} Y-10\n")
         file.write(f"G0 F{int(cfg.ts)*60} Y10\n")
         file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*2),2)} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
-        file.write(f"G1 F{int(ps*60)} X10 E{round(Decimal(eValueresult),5)}\n")
+        file.write(f"G1 F{int(cfg.ps*60)} X10 E{round(Decimal(eValueresult),5)}\n")
         file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*3),2) * -1} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
         file.write(f"G0 F{int(cfg.ts)*60} Y-10\n")
         file.write(f"G0 F{int(cfg.ts)*60} Y10\n")
         file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*3),2)} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
-        file.write(f"G1 F{int(ps*60)} X10 E{round(Decimal(eValueresult),5)}\n")
+        file.write(f"G1 F{int(cfg.ps*60)} X10 E{round(Decimal(eValueresult),5)}\n")
 
         #Layer Marker Bottom Right
-        file.write(f"G1 F{int(ps*60)} X1 E{round(Decimal(corenermarker),5)}\n")
-        file.write(f"G1 F{int(ps*60)} Y-1 E{round(Decimal(corenermarker),5)}\n")
-        file.write(f"G1 F{int(ps*60)} X-1 E{round(Decimal(corenermarker),5)}\n")
-        file.write(f"G1 F{int(ps*60)} Y1 E{round(Decimal(corenermarker),5)}\n")
+        file.write(f"G1 F{int(cfg.ps*60)} X1 E{round(Decimal(corenermarker),5)}\n")
+        file.write(f"G1 F{int(cfg.ps*60)} Y-1 E{round(Decimal(corenermarker),5)}\n")
+        file.write(f"G1 F{int(cfg.ps*60)} X-1 E{round(Decimal(corenermarker),5)}\n")
+        file.write(f"G1 F{int(cfg.ps*60)} Y1 E{round(Decimal(corenermarker),5)}\n")
 
         #Right
-        file.write(f"G1 F{int(ps*60)} Y10 E{round(Decimal(eValueresult),5)}\n")
+        file.write(f"G1 F{int(cfg.ps*60)} Y10 E{round(Decimal(eValueresult),5)}\n")
         file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*4),2) * -1} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
         file.write(f"G0 F{int(cfg.ts)*60} X10\n")
         file.write(f"G0 F{int(cfg.ts)*60} X-10\n")
         file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*4),2)} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
-        file.write(f"G1 F{int(ps*60)} Y10 E{round(Decimal(eValueresult),5)}\n")
+        file.write(f"G1 F{int(cfg.ps*60)} Y10 E{round(Decimal(eValueresult),5)}\n")
         file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*5),2) * -1} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
         file.write(f"G0 F{int(cfg.ts)*60} X10\n")
         file.write(f"G0 F{int(cfg.ts)*60} X-10\n")
         file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*5),2)} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
-        file.write(f"G1 F{int(ps*60)} Y10 E{round(Decimal(eValueresult),5)}\n")
+        file.write(f"G1 F{int(cfg.ps*60)} Y10 E{round(Decimal(eValueresult),5)}\n")
         file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*6),2) * -1} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
         file.write(f"G0 F{int(cfg.ts)*60} X10\n")
         file.write(f"G0 F{int(cfg.ts)*60} X-10\n")
         file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*6),2)} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
-        file.write(f"G1 F{int(ps*60)} Y10 E{round(Decimal(eValueresult),5)}\n")
+        file.write(f"G1 F{int(cfg.ps*60)} Y10 E{round(Decimal(eValueresult),5)}\n")
         file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*7),2) * -1} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
         file.write(f"G0 F{int(cfg.ts)*60} X10\n")
         file.write(f"G0 F{int(cfg.ts)*60} X-10\n")
         file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*7),2)} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
-        file.write(f"G1 F{int(ps*60)} Y10 E{round(Decimal(eValueresult),5)}\n")
+        file.write(f"G1 F{int(cfg.ps*60)} Y10 E{round(Decimal(eValueresult),5)}\n")
 
         #Layer Marker Top Right
-        file.write(f"G1 F{int(ps*60)} X1 E{round(Decimal(corenermarker),5)}\n")
-        file.write(f"G1 F{int(ps*60)} Y1 E{round(Decimal(corenermarker),5)}\n")
-        file.write(f"G1 F{int(ps*60)} X-1 E{round(Decimal(corenermarker),5)}\n")
-        file.write(f"G1 F{int(ps*60)} Y-1 E{round(Decimal(corenermarker),5)}\n")
+        file.write(f"G1 F{int(cfg.ps*60)} X1 E{round(Decimal(corenermarker),5)}\n")
+        file.write(f"G1 F{int(cfg.ps*60)} Y1 E{round(Decimal(corenermarker),5)}\n")
+        file.write(f"G1 F{int(cfg.ps*60)} X-1 E{round(Decimal(corenermarker),5)}\n")
+        file.write(f"G1 F{int(cfg.ps*60)} Y-1 E{round(Decimal(corenermarker),5)}\n")
 
         #Top
-        file.write(f"G1 F{int(ps*60)} X-10 E{round(Decimal(eValueresult),5)}\n")
+        file.write(f"G1 F{int(cfg.ps*60)} X-10 E{round(Decimal(eValueresult),5)}\n")
         file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*8),2) * -1} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
         file.write(f"G0 F{int(cfg.ts)*60} Y10\n")
         file.write(f"G0 F{int(cfg.ts)*60} Y-10\n")
         file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*8),2)} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
-        file.write(f"G1 F{int(ps*60)} X-10 E{round(Decimal(eValueresult),5)}\n")
+        file.write(f"G1 F{int(cfg.ps*60)} X-10 E{round(Decimal(eValueresult),5)}\n")
         file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*9),2) * -1} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
         file.write(f"G0 F{int(cfg.ts)*60} Y10\n")
         file.write(f"G0 F{int(cfg.ts)*60} Y-10\n")
         file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*9),2)} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
-        file.write(f"G1 F{int(ps*60)} X-10 E{round(Decimal(eValueresult),5)}\n")
+        file.write(f"G1 F{int(cfg.ps*60)} X-10 E{round(Decimal(eValueresult),5)}\n")
         file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*10),2) * -1} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
         file.write(f"G0 F{int(cfg.ts)*60} Y10\n")
         file.write(f"G0 F{int(cfg.ts)*60} Y-10\n")
         file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*10),2)} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
-        file.write(f"G1 F{int(ps*60)} X-10 E{round(Decimal(eValueresult),5)}\n")
+        file.write(f"G1 F{int(cfg.ps*60)} X-10 E{round(Decimal(eValueresult),5)}\n")
         file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*11),2) * -1} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
         file.write(f"G0 F{int(cfg.ts)*60} Y10\n")
         file.write(f"G0 F{int(cfg.ts)*60} Y-10\n")
         file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*11),2)} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
-        file.write(f"G1 F{int(ps*60)} X-10 E{round(Decimal(eValueresult),5)}\n")
+        file.write(f"G1 F{int(cfg.ps*60)} X-10 E{round(Decimal(eValueresult),5)}\n")
 
         #Layer Marker Top Left
-        file.write(f"G1 F{int(ps*60)} X-1 E{round(Decimal(corenermarker),5)}\n")
-        file.write(f"G1 F{int(ps*60)} Y1 E{round(Decimal(corenermarker),5)}\n")
-        file.write(f"G1 F{int(ps*60)} X1 E{round(Decimal(corenermarker),5)}\n")
-        file.write(f"G1 F{int(ps*60)} Y-1 E{round(Decimal(corenermarker),5)}\n")
+        file.write(f"G1 F{int(cfg.ps*60)} X-1 E{round(Decimal(corenermarker),5)}\n")
+        file.write(f"G1 F{int(cfg.ps*60)} Y1 E{round(Decimal(corenermarker),5)}\n")
+        file.write(f"G1 F{int(cfg.ps*60)} X1 E{round(Decimal(corenermarker),5)}\n")
+        file.write(f"G1 F{int(cfg.ps*60)} Y-1 E{round(Decimal(corenermarker),5)}\n")
 
         #Left
-        file.write(f"G1 F{int(ps*60)} Y-10 E{round(Decimal(eValueresult),5)}\n")
+        file.write(f"G1 F{int(cfg.ps*60)} Y-10 E{round(Decimal(eValueresult),5)}\n")
         file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*12),2) * -1} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
         file.write(f"G0 F{int(cfg.ts)*60} X-10\n")
         file.write(f"G0 F{int(cfg.ts)*60} X10\n")
         file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*12),2)} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
-        file.write(f"G1 F{int(ps*60)} Y-10 E{round(Decimal(eValueresult),5)}\n")
+        file.write(f"G1 F{int(cfg.ps*60)} Y-10 E{round(Decimal(eValueresult),5)}\n")
         file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*13),2) * -1} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
         file.write(f"G0 F{int(cfg.ts)*60} X-10\n")
         file.write(f"G0 F{int(cfg.ts)*60} X10\n")
         file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*13),2)} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
-        file.write(f"G1 F{int(ps*60)} Y-10 E{round(Decimal(eValueresult),5)}\n")
+        file.write(f"G1 F{int(cfg.ps*60)} Y-10 E{round(Decimal(eValueresult),5)}\n")
         file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*14),2) * -1} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
         file.write(f"G0 F{int(cfg.ts)*60} X-10\n")
         file.write(f"G0 F{int(cfg.ts)*60} X10\n")
         file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*14),2)} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
-        file.write(f"G1 F{int(ps*60)} Y-10 E{round(Decimal(eValueresult),5)}\n")
+        file.write(f"G1 F{int(cfg.ps*60)} Y-10 E{round(Decimal(eValueresult),5)}\n")
         file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*15),2) * -1} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
         file.write(f"G0 F{int(cfg.ts)*60} X-10\n")
         file.write(f"G0 F{int(cfg.ts)*60} X10\n")
         file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*15),2)} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
-        file.write(f"G1 F{int(ps*60)} Y-10 E{round(Decimal(eValueresult),5)}\n")
+        file.write(f"G1 F{int(cfg.ps*60)} Y-10 E{round(Decimal(eValueresult),5)}\n")
 
         #Zup layer height
 
@@ -413,96 +393,96 @@ def button_clicked(ui: Ui_MainWindow):
 
             file.write(f";Layer {layer}\n")
             #Bottom
-            file.write(f"G1 F{int(ps*60)} X10 E{round(Decimal(eValueresult),5)}\n")
+            file.write(f"G1 F{int(cfg.ps*60)} X10 E{round(Decimal(eValueresult),5)}\n")
             file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*0),2) * -1} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
             file.write(f"G0 F{int(cfg.ts)*60} Y-10\n")
             file.write(f"G0 F{int(cfg.ts)*60} Y10\n")
             file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*0),2)} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
-            file.write(f"G1 F{int(ps*60)} X10 E{round(Decimal(eValueresult),5)}\n")
+            file.write(f"G1 F{int(cfg.ps*60)} X10 E{round(Decimal(eValueresult),5)}\n")
             file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*1),2) * -1} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
             file.write(f"G0 F{int(cfg.ts)*60} Y-10\n")
             file.write(f"G0 F{int(cfg.ts)*60} Y10\n")
             file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*1),2)} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
-            file.write(f"G1 F{int(ps*60)} X10 E{round(Decimal(eValueresult),5)}\n")
+            file.write(f"G1 F{int(cfg.ps*60)} X10 E{round(Decimal(eValueresult),5)}\n")
             file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*2),2) * -1} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
             file.write(f"G0 F{int(cfg.ts)*60} Y-10\n")
             file.write(f"G0 F{int(cfg.ts)*60} Y10\n")
             file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*2),2)} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
-            file.write(f"G1 F{int(ps*60)} X10 E{round(Decimal(eValueresult),5)}\n")
+            file.write(f"G1 F{int(cfg.ps*60)} X10 E{round(Decimal(eValueresult),5)}\n")
             file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*3),2) * -1} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
             file.write(f"G0 F{int(cfg.ts)*60} Y-10\n")
             file.write(f"G0 F{int(cfg.ts)*60} Y10\n")
             file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*3),2)} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
-            file.write(f"G1 F{int(ps*60)} X10 E{round(Decimal(eValueresult),5)}\n")
+            file.write(f"G1 F{int(cfg.ps*60)} X10 E{round(Decimal(eValueresult),5)}\n")
 
             #Right
-            file.write(f"G1 F{int(ps*60)} Y10 E{round(Decimal(eValueresult),5)}\n")
+            file.write(f"G1 F{int(cfg.ps*60)} Y10 E{round(Decimal(eValueresult),5)}\n")
             file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*4),2) * -1} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
             file.write(f"G0 F{int(cfg.ts)*60} X10\n")
             file.write(f"G0 F{int(cfg.ts)*60} X-10\n")
             file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*4),2)} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
-            file.write(f"G1 F{int(ps*60)} Y10 E{round(Decimal(eValueresult),5)}\n")
+            file.write(f"G1 F{int(cfg.ps*60)} Y10 E{round(Decimal(eValueresult),5)}\n")
             file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*5),2) * -1} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
             file.write(f"G0 F{int(cfg.ts)*60} X10\n")
             file.write(f"G0 F{int(cfg.ts)*60} X-10\n")
             file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*5),2)} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
-            file.write(f"G1 F{int(ps*60)} Y10 E{round(Decimal(eValueresult),5)}\n")
+            file.write(f"G1 F{int(cfg.ps*60)} Y10 E{round(Decimal(eValueresult),5)}\n")
             file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*6),2) * -1} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
             file.write(f"G0 F{int(cfg.ts)*60} X10\n")
             file.write(f"G0 F{int(cfg.ts)*60} X-10\n")
             file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*6),2)} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
-            file.write(f"G1 F{int(ps*60)} Y10 E{round(Decimal(eValueresult),5)}\n")
+            file.write(f"G1 F{int(cfg.ps*60)} Y10 E{round(Decimal(eValueresult),5)}\n")
             file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*7),2) * -1} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
             file.write(f"G0 F{int(cfg.ts)*60} X10\n")
             file.write(f"G0 F{int(cfg.ts)*60} X-10\n")
             file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*7),2)} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
-            file.write(f"G1 F{int(ps*60)} Y10 E{round(Decimal(eValueresult),5)}\n")
+            file.write(f"G1 F{int(cfg.ps*60)} Y10 E{round(Decimal(eValueresult),5)}\n")
 
             #Top
-            file.write(f"G1 F{int(ps*60)} X-10 E{round(Decimal(eValueresult),5)}\n")
+            file.write(f"G1 F{int(cfg.ps*60)} X-10 E{round(Decimal(eValueresult),5)}\n")
             file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*8),2) * -1} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
             file.write(f"G0 F{int(cfg.ts)*60} Y10\n")
             file.write(f"G0 F{int(cfg.ts)*60} Y-10\n")
             file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*8),2)} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
-            file.write(f"G1 F{int(ps*60)} X-10 E{round(Decimal(eValueresult),5)}\n")
+            file.write(f"G1 F{int(cfg.ps*60)} X-10 E{round(Decimal(eValueresult),5)}\n")
             file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*9),2) * -1} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
             file.write(f"G0 F{int(cfg.ts)*60} Y10\n")
             file.write(f"G0 F{int(cfg.ts)*60} Y-10\n")
             file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*9),2)} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
-            file.write(f"G1 F{int(ps*60)} X-10 E{round(Decimal(eValueresult),5)}\n")
+            file.write(f"G1 F{int(cfg.ps*60)} X-10 E{round(Decimal(eValueresult),5)}\n")
             file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*10),2) * -1} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
             file.write(f"G0 F{int(cfg.ts)*60} Y10\n")
             file.write(f"G0 F{int(cfg.ts)*60} Y-10\n")
             file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*10),2)} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
-            file.write(f"G1 F{int(ps*60)} X-10 E{round(Decimal(eValueresult),5)}\n")
+            file.write(f"G1 F{int(cfg.ps*60)} X-10 E{round(Decimal(eValueresult),5)}\n")
             file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*11),2) * -1} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
             file.write(f"G0 F{int(cfg.ts)*60} Y10\n")
             file.write(f"G0 F{int(cfg.ts)*60} Y-10\n")
             file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*11),2)} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
-            file.write(f"G1 F{int(ps*60)} X-10 E{round(Decimal(eValueresult),5)}\n")
+            file.write(f"G1 F{int(cfg.ps*60)} X-10 E{round(Decimal(eValueresult),5)}\n")
 
             #Left
-            file.write(f"G1 F{int(ps*60)} Y-10 E{round(Decimal(eValueresult),5)}\n")
+            file.write(f"G1 F{int(cfg.ps*60)} Y-10 E{round(Decimal(eValueresult),5)}\n")
             file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*12),2) * -1} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
             file.write(f"G0 F{int(cfg.ts)*60} X-10\n")
             file.write(f"G0 F{int(cfg.ts)*60} X10\n")
             file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*12),2)} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
-            file.write(f"G1 F{int(ps*60)} Y-10 E{round(Decimal(eValueresult),5)}\n")
+            file.write(f"G1 F{int(cfg.ps*60)} Y-10 E{round(Decimal(eValueresult),5)}\n")
             file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*13),2) * -1} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
             file.write(f"G0 F{int(cfg.ts)*60} X-10\n")
             file.write(f"G0 F{int(cfg.ts)*60} X10\n")
             file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*13),2)} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
-            file.write(f"G1 F{int(ps*60)} Y-10 E{round(Decimal(eValueresult),5)}\n")
+            file.write(f"G1 F{int(cfg.ps*60)} Y-10 E{round(Decimal(eValueresult),5)}\n")
             file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*14),2) * -1} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
             file.write(f"G0 F{int(cfg.ts)*60} X-10\n")
             file.write(f"G0 F{int(cfg.ts)*60} X10\n")
             file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*14),2)} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
-            file.write(f"G1 F{int(ps*60)} Y-10 E{round(Decimal(eValueresult),5)}\n")
+            file.write(f"G1 F{int(cfg.ps*60)} Y-10 E{round(Decimal(eValueresult),5)}\n")
             file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*15),2) * -1} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
             file.write(f"G0 F{int(cfg.ts)*60} X-10\n")
             file.write(f"G0 F{int(cfg.ts)*60} X10\n")
             file.write(f"G1 E{round(Decimal(cfg.srd+cfg.ird*15),2)} F{round(Decimal((cfg.srs+cfg.irs*loopbigcount) * 60),2)}\n")
-            file.write(f"G1 F{int(ps*60)} Y-10 E{round(Decimal(eValueresult),5)}\n")
+            file.write(f"G1 F{int(cfg.ps*60)} Y-10 E{round(Decimal(eValueresult),5)}\n")
 
             file.write(f"G1 Z{cfg.lh}\n")
             layer = layer + 1
