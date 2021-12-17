@@ -315,6 +315,66 @@ def layer_group(config: GcodeConfig, big_section_num: int, start_layer: int) -> 
     return gcode
 
 
+def generate_header(config: GcodeConfig) -> list[str]:
+    """Generate the retraction calibration header."""
+    title_str = "Calibration Generator 1.3.3"
+    header = [
+        title_str,
+        "",
+        "",
+    ]
+    header.extend(
+        retraction_distance_diagram(
+            config.retraction_dist_init,
+            config.retraction_dist_delta
+        )
+    )
+    header.extend(["",""])
+
+    # Print variables by height
+    header.extend(variables_by_height(config))
+    header.extend(["",""])
+
+    # Print variables
+    header.extend([" All inputs", ""])
+    header.extend([f"{key} = {value}" for key, value in asdict(config).values()])
+    header.extend(["", ""])
+    
+    return header
+
+
+def generate_retraction_calibration(config: GcodeConfig) -> list[str]:
+    """Get the full set of gcode for the retraction calibration test."""
+    gcode = generate_header(config)
+
+    # Print out starting gcode
+    gcode.extend(start_gcode(config))
+
+    # Write raft gcode to file
+    gcode.extend(raft_gcode(config))
+
+    #Relative Movements
+    gcode.extend(["M83", "G91"])
+
+    # Tower
+    for test_num in range(config.num_tests):
+        gcode.extend(layer_group(config, test_num, 3))
+
+    # Ending Gcode
+    end_gcode = [
+        "G1 Z5",  # Raise 5mm
+        "G90",  # Absolute Position
+        "G28 X0 Y0",  # Home X Y
+        "M84",  # Turn off Steppers
+        "M107",  # Turn off Fan
+        "M104 S0",  # Turn off Hotend
+        "M140 S0",  # Turn off Bed
+    ]
+    gcode.extend(end_gcode)
+
+    return gcode
+
+
 def button_clicked(ui: Ui_MainWindow):
     name = QtWidgets.QFileDialog.getSaveFileName(
         ui.centralwidget,
@@ -328,7 +388,7 @@ def button_clicked(ui: Ui_MainWindow):
         
     file = open(name[0],'w')
 
-    cfg = GcodeConfig(
+    config = GcodeConfig(
         # Start Gcode Retraction Distance
         retraction_dist_init=float(ui.startRetractiondistance.text()),
         retraction_dist_delta=float(ui.incrementRetractiondistance.text()),
@@ -354,59 +414,10 @@ def button_clicked(ui: Ui_MainWindow):
         # Custom Gcode
         custom_gcode=str(ui.customGcode.toPlainText()),
     )
+
+    with open(name[0], 'w') as file:
+        file.write("\n".join(generate_retraction_calibration(config)) + "\n")
     
-    # Array of retraction distances
-    
-    title_str = "Calibration Generator 1.3.3"
-    file.write(f";{title_str}\n")
-    file.write(f";\n;\n")
-
-    # Print retraction distance diagram
-    diagram_str = retraction_distance_diagram(cfg.retraction_dist_init, cfg.retraction_dist_delta)
-    for s in diagram_str:
-        file.write(f";{s}\n")
-    file.write(f";\n;\n")
-
-    # Print variables by height
-    for s in variables_by_height(cfg):
-        file.write(f";{s}\n")
-
-    # Print variables
-    file.write(f";\n;\n")
-    file.write(f"; All inputs\n")
-    file.write(f";\n")
-    for key, value in asdict(cfg).values():
-        file.write(f";{key} = {value}\n")
-    file.write(f";\n;\n")
-
-    # Print out starting gcode
-    file.write("\n".join(start_gcode(cfg)) + "\n")
-    
-    # Write raft gcode to file
-    file.write("\n".join(raft_gcode(cfg)) + "\n")
-
-    #Relative Movements
-
-    file.write(f"M83\n")
-    file.write(f"G91\n")
-
-    # Tower
-    for test_num in range(cfg.num_tests):
-        file.write("\n".join(layer_group(cfg, test_num, 3)) + "\n")
-
-    # Ending Gcode
-    end_gcode = [
-        "G1 Z5",  #Raise 5mm
-        "G90",  # Absolute Position
-        "G28 X0 Y0",  # Home X Y
-        "M84",  # Turn off Steppers
-        "M107",  # Turn off Fan
-        "M104 S0",  # Turn off Hotend
-        "M140 S0",  #Turn off Bed
-    ]
-    file.write("\n".join(end_gcode))
-
-    file.close()
 
 def main():
     import sys
