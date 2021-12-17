@@ -46,7 +46,8 @@ def button_clicked(ui: Ui_MainWindow):
     )
 
     with open(filename, "w") as file:
-        file.write("\n".join(generate_retraction_calibration(config)) + "\n")
+        for line in generate_retraction_calibration(config):
+            file.write(f"{line}\n")
 
 
 def main():

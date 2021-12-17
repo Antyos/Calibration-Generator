@@ -103,32 +103,32 @@ def raft_gcode(config: GcodeConfig) -> list[TGcode]:
     return gcode
 
 
-def generate_retraction_calibration(config: GcodeConfig) -> list[str]:
+def generate_retraction_calibration(config: GcodeConfig) -> list[TGcode]:
     """Get the full set of gcode for the retraction calibration test."""
-    gcode = [line for line in generate_header(config)]
+    gcode: list[TGcode] = [line for line in generate_header(config)]
 
     # Print out starting gcode
-    gcode.extend(map(str, start_gcode(config)))
+    gcode.extend(start_gcode(config))
 
     # Write raft gcode to file
-    gcode.extend(map(str, raft_gcode(config)))
+    gcode.extend(raft_gcode(config))
 
     # Relative Movements
-    gcode.extend(["M83", "G91"])
+    gcode.extend([Gcode("M83"), GcodeUseIncrementalPositioning()])
 
     # Tower
     for test_num in range(config.num_tests):
-        gcode.extend(layer_group(config, test_num, 3))
+        gcode.extend(GcodeMisc(g) for g in layer_group(config, test_num, 3))
 
     # Ending Gcode
     end_gcode = [
-        "G1 Z5",  # Raise 5mm
-        "G90",  # Absolute Position
-        "G28 X0 Y0",  # Home X Y
-        "M84",  # Turn off Steppers
-        "M107",  # Turn off Fan
-        "M104 S0",  # Turn off Hotend
-        "M140 S0",  # Turn off Bed
+        GcodeLinearMove(Z=5),  # Raise 5mm
+        GcodeUseAbsolutePositioning(),  # Absolute Position
+        Gcode("G28", X=0, Y=0),  # Home X Y
+        Gcode("M84"),  # Turn off Steppers
+        Gcode("M107"),  # Turn off Fan
+        Gcode("M104", S=0),  # Turn off Hotend
+        Gcode("M140", S=0),  # Turn off Bed
     ]
     gcode.extend(end_gcode)
 
