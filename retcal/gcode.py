@@ -39,6 +39,15 @@ class GcodeUseIncrementalPositioning(GcodeCommand):
 
 class GcodeSetPosition(GcodeCommand):
     command = "G92"
+    
+class GcodeMisc(Gcode):
+    """Miscellaneous Gcode"""
+    gcode: str
+    def __init__(self, gcode: str):
+        self.gcode = gcode
+    
+    def __str__(self):
+        return self.gcode
 
 class Comment:
     """Generic Gcode comment"""
