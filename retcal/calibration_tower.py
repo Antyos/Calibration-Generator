@@ -1,6 +1,28 @@
+from euclid import Vector2
+from retcal.gcode import Comment, Gcode, GcodeLinearMove, GcodeRapidMove, TGcode
+from retcal.utils import vec_to_dict
 from .config import GcodeConfig
 
-def single_layer(config: GcodeConfig, big_section_num: int) -> list[str]:
+
+def retraction_segment(
+    vector: tuple[Vector2, Vector2],
+    retraction_dist: float,
+    retraction_flowrate: float,
+    e_blob_dist: float,
+    print_speed: float,
+    travel_speed: float,
+):
+    """Line section"""
+    return [
+        GcodeLinearMove(**vec_to_dict(vector[0]), E=e_blob_dist, F=print_speed),
+        GcodeLinearMove(E=-retraction_dist, F=retraction_flowrate),
+        GcodeRapidMove(**vec_to_dict(vector[1]), F=travel_speed),
+        GcodeRapidMove(**vec_to_dict(-vector[1]), F=travel_speed),
+        GcodeLinearMove(E=retraction_dist, F=retraction_flowrate),
+    ]
+
+
+def single_layer(config: GcodeConfig, big_section_num: int) -> list[TGcode]:
     """Gcode for a single layer"""
     print_speed = config.print_speed
     travel_speed = config.travel_speed
@@ -12,66 +34,72 @@ def single_layer(config: GcodeConfig, big_section_num: int) -> list[str]:
     dist_init = config.retraction_dist_init
     dist_delta = config.retraction_dist_delta
 
-    gcode = []
+    gcode: list[TGcode] = []
 
     # Bottom
     for i in range(0 + 0, 4 + 0):
         gcode.extend(
-            [
-                f"G1 F{print_speed} X10 E{e_value:.5f}",
-                f"G1 E{-(dist_init+dist_delta*i):.2f} F{f_value:.2f}",
-                f"G0 F{travel_speed} Y-10",
-                f"G0 F{travel_speed} Y10",
-                f"G1 E{(dist_init+dist_delta*i):.2f} F{f_value:.2f}",
-            ]
+            retraction_segment(
+                (Vector2(10, 0), Vector2(0, -10)),
+                dist_init + dist_delta * i,
+                f_value,
+                e_value,
+                print_speed,
+                travel_speed,
+            )
         )
 
     # Right
     for i in range(0 + 4, 4 + 4):
         gcode.extend(
-            [
-                f"G1 F{print_speed} Y10 E{e_value:.5f}",
-                f"G1 E{-(dist_init+dist_delta*i):.2f} F{f_value:.2f}",
-                f"G0 F{travel_speed} X10",
-                f"G0 F{travel_speed} X-10",
-                f"G1 E{(dist_init+dist_delta*i):.2f} F{f_value:.2f}",
-            ]
+            retraction_segment(
+                (Vector2(0, 10), Vector2(10, 0)),
+                dist_init + dist_delta * i,
+                f_value,
+                e_value,
+                print_speed,
+                travel_speed,
+            )
         )
 
     # Top
     for i in range(0 + 8, 4 + 8):
         gcode.extend(
-            [
-                f"G1 F{print_speed} X-10 E{e_value:.5f}",
-                f"G1 E{-(dist_init+dist_delta*i):.2f} F{f_value:.2f}",
-                f"G0 F{travel_speed} Y10",
-                f"G0 F{travel_speed} Y-10",
-                f"G1 E{(dist_init+dist_delta*i):.2f} F{f_value:.2f}",
-            ]
+            retraction_segment(
+                (Vector2(-10, 0), Vector2(0, 10)),
+                dist_init + dist_delta * i,
+                f_value,
+                e_value,
+                print_speed,
+                travel_speed,
+            )
         )
 
     # Left
     for i in range(0 + 12, 4 + 12):
         gcode.extend(
-            [
-                f"G1 F{print_speed} Y-10 E{e_value:.5f}",
-                f"G1 E{-(dist_init+dist_delta*i):.2f} F{f_value:.2f}",
-                f"G0 F{travel_speed} X-10",
-                f"G0 F{travel_speed} X10",
-                f"G1 E{(dist_init+dist_delta*i):.2f} F{f_value:.2f}",
-            ]
+            retraction_segment(
+                (Vector2(0, -10), Vector2(10, 0)),
+                dist_init + dist_delta * i,
+                f_value,
+                e_value,
+                print_speed,
+                travel_speed,
+            )
         )
 
     return gcode
 
 
-def corner_marker(patterns: list[str], print_speed, e_speed) -> list[str]:
-    return [f"G1 F{print_speed} {pattern} E{e_speed:.5f}" for pattern in patterns]
+def corner_marker(vectors: list[Vector2], print_speed, e_speed) -> list[TGcode]:
+    return [
+        GcodeLinearMove(**vec_to_dict(vec), E=e_speed, F=print_speed) for vec in vectors
+    ]
 
 
 def layer_group(
     config: GcodeConfig, big_section_num: int, start_layer: int
-) -> list[str]:
+) -> list[TGcode]:
     """Generate a block of layers"""
     print_speed = config.print_speed
     travel_speed = config.travel_speed
@@ -87,80 +115,136 @@ def layer_group(
 
     layer_num = start_layer + big_section_num * config.layers_per_test
 
-    gcode = [
+    gcode: list[TGcode] = [
         # Set Fan every 15 layers
-        f"M106 S{(config.fan_speed_init+config.fan_speed_delta*big_section_num) * 255 / 100:d}",
-        f"M104 S{config.hotend_temp_init+config.hotend_temp_change*big_section_num:d}",
-        f";Layer {layer_num}",
+        Gcode(
+            "M106",
+            S=(config.fan_speed_init + config.fan_speed_delta * big_section_num)
+            * 255
+            / 100,
+        ),
+        Gcode(
+            "M104",
+            S=config.hotend_temp_init + config.hotend_temp_change * big_section_num,
+        ),
+        Comment(f"Layer {layer_num}"),
     ]
 
     # Layer Marker Bottom Left
-    gcode.extend(corner_marker(["X-2", "Y-2", "X2", "Y2"], print_speed, e_corner))
+    gcode.extend(
+        corner_marker(
+            [
+                Vector2(-2, 0),
+                Vector2(0, -2),
+                Vector2(2, 0),
+                Vector2(0, 2),
+            ],
+            print_speed,
+            e_corner,
+        )
+    )
 
     # Bottom
     for i in range(0 + 0, 4 + 0):
         gcode.extend(
-            [
-                f"G1 F{print_speed} X10 E{e_value:.5f}",
-                f"G1 E{-(dist_init+dist_delta*i):.2f} F{f_value:.2f}",
-                f"G0 F{travel_speed} Y-10",
-                f"G0 F{travel_speed} Y10",
-                f"G1 E{(dist_init+dist_delta*i):.2f} F{f_value:.2f}",
-            ]
+            retraction_segment(
+                (Vector2(10, 0), Vector2(0, -10)),
+                dist_init + dist_delta * i,
+                f_value,
+                e_value,
+                print_speed,
+                travel_speed,
+            )
         )
 
     # Layer Marker Bottom Right
-    gcode.extend(corner_marker(["X1", "Y-1", "X-1", "Y1"], print_speed, e_corner))
+    gcode.extend(
+        corner_marker(
+            [
+                Vector2(1, 0),
+                Vector2(0, -1),
+                Vector2(-1, 0),
+                Vector2(0, 1),
+            ],
+            print_speed,
+            e_corner,
+        )
+    )
 
     # Right
     for i in range(0 + 4, 4 + 4):
         gcode.extend(
-            [
-                f"G1 F{print_speed} Y10 E{e_value:.5f}",
-                f"G1 E{-(dist_init+dist_delta*i):.2f} F{f_value:.2f}",
-                f"G0 F{travel_speed} X10",
-                f"G0 F{travel_speed} X-10",
-                f"G1 E{(dist_init+dist_delta*i):.2f} F{f_value:.2f}",
-            ]
+            retraction_segment(
+                (Vector2(0, 10), Vector2(10, 0)),
+                dist_init + dist_delta * i,
+                f_value,
+                e_value,
+                print_speed,
+                travel_speed,
+            )
         )
 
     # Layer Marker Top Right
-    gcode.extend(corner_marker(["X1", "Y1", "X-1", "Y-1"], print_speed, e_corner))
+    gcode.extend(
+        corner_marker(
+            [
+                Vector2(1, 0),
+                Vector2(0, 1),
+                Vector2(-1, 0),
+                Vector2(0, -1),
+            ],
+            print_speed,
+            e_corner,
+        )
+    )
 
     # Top
     for i in range(0 + 8, 4 + 8):
         gcode.extend(
-            [
-                f"G1 F{print_speed} X-10 E{e_value:.5f}",
-                f"G1 E{-(dist_init+dist_delta*i):.2f} F{f_value:.2f}",
-                f"G0 F{travel_speed} Y10",
-                f"G0 F{travel_speed} Y-10",
-                f"G1 E{(dist_init+dist_delta*i):.2f} F{f_value:.2f}",
-            ]
+            retraction_segment(
+                (Vector2(-10, 0), Vector2(0, 10)),
+                dist_init + dist_delta * i,
+                f_value,
+                e_value,
+                print_speed,
+                travel_speed,
+            )
         )
 
     # Layer Marker Top Left
-    gcode.extend(corner_marker(["X-1", "Y1", "X1", "Y-1"], print_speed, e_corner))
+    gcode.extend(
+        corner_marker(
+            [
+                Vector2(-1, 0),
+                Vector2(0, 1),
+                Vector2(1, 0),
+                Vector2(0, -1),
+            ],
+            print_speed,
+            e_corner,
+        )
+    )
 
     # Left
     for i in range(0 + 12, 4 + 12):
         gcode.extend(
-            [
-                f"G1 F{print_speed} Y-10 E{e_value:.5f}",
-                f"G1 E{-(dist_init+dist_delta*i):.2f} F{f_value:.2f}",
-                f"G0 F{travel_speed} X-10",
-                f"G0 F{travel_speed} X10",
-                f"G1 E{(dist_init+dist_delta*i):.2f} F{f_value:.2f}",
-            ]
+            retraction_segment(
+                (Vector2(0, -10), Vector2(10, 0)),
+                dist_init + dist_delta * i,
+                f_value,
+                e_value,
+                print_speed,
+                travel_speed,
+            )
         )
 
     # Zup layer height
-    gcode.append(f"G1 Z{layer_height}")
+    gcode.append(GcodeLinearMove(Z=layer_height))
 
     # Do the rest of the layers without the loops
     for layer in range(config.layers_per_test - 1):
-        gcode.append(f";Layer {layer_num+layer}")
+        gcode.append(Comment(f"Layer {layer_num+layer}"))
         gcode.extend(single_layer(config, big_section_num))
-        gcode.append(f"G1 Z{config.layer_height}")
+        gcode.append(GcodeLinearMove(Z=config.layer_height))
 
     return gcode

@@ -118,7 +118,7 @@ def generate_retraction_calibration(config: GcodeConfig) -> list[TGcode]:
 
     # Tower
     for test_num in range(config.num_tests):
-        gcode.extend(GcodeMisc(g) for g in layer_group(config, test_num, 3))
+        gcode.extend(layer_group(config, test_num, 3))
 
     # Ending Gcode
     end_gcode = [
