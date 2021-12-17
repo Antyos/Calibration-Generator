@@ -422,8 +422,9 @@ def button_clicked(ui: Ui_MainWindow):
     if len(name[0]) == 0:
         return
 
-    file = open(name[0], "w")
+    filename = name[0]
 
+    # Get config
     config = GcodeConfig(
         # Start Gcode Retraction Distance
         retraction_dist_init=float(ui.startRetractiondistance.text()),
@@ -451,7 +452,7 @@ def button_clicked(ui: Ui_MainWindow):
         custom_gcode=str(ui.customGcode.toPlainText()),
     )
 
-    with open(name[0], "w") as file:
+    with open(filename, "w") as file:
         file.write("\n".join(generate_retraction_calibration(config)) + "\n")
 
 
