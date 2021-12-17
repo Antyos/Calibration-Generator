@@ -13,6 +13,7 @@ pyqt5ac = "^1.2.1"
 pyinstaller = "^4.5.1"
 pyuic5-tool = "^0.0.1"
 mypy = "^0.920"
+black = {version = "^21.12b0", allow-prereleases = true}
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
