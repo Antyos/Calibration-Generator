@@ -1,6 +1,9 @@
 from typing import Union
 
 
+# Generic Gcode
+
+
 class Gcode:
     """Generic Gcode command"""
 
@@ -20,34 +23,53 @@ class Gcode:
 
         return " ".join(parts)
 
+
 class GcodeCommand(Gcode):
     def __init__(self, *args, **params):
         command = getattr(self, "command", "")
         super().__init__(command, *args, **params)
 
+
+# Specific Gcode
+
+
 class GcodeRapidMove(GcodeCommand):
     command = "G0"
 
+
 class GcodeLinearMove(GcodeCommand):
     command = "G1"
-    
+
+
 class GcodeUseAbsolutePositioning(GcodeCommand):
     command = "G90"
+
 
 class GcodeUseIncrementalPositioning(GcodeCommand):
     command = "G91"
 
+
 class GcodeSetPosition(GcodeCommand):
     command = "G92"
-    
+
+
+# Misc Gcode
+
+
 class GcodeMisc(Gcode):
     """Miscellaneous Gcode"""
+
     gcode: str
+
     def __init__(self, gcode: str):
         self.gcode = gcode
-    
+
     def __str__(self):
         return self.gcode
+
+
+# Comments
+
 
 class Comment:
     """Generic Gcode comment"""
@@ -60,5 +82,7 @@ class Comment:
     def __str__(self):
         return f";{self.comment}"
 
+
+# Typing
 
 TGcode = Union[Gcode, Comment]
