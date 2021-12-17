@@ -4,7 +4,6 @@ from dataclasses import asdict, dataclass
 
 from PyQt5 import QtCore, QtGui, QtWidgets
 from RetCalui import Ui_MainWindow
-from decimal import Decimal
 
 
 @dataclass
@@ -47,9 +46,7 @@ class GcodeConfig:
 
 def retraction_distance_diagram(start_distance: float, increment: float) -> list[str]:
     """Create a top-down diagram of the retraction distances."""
-    retraction_dists = [
-        round(Decimal(start_distance + increment * i), 2) for i in range(16)
-    ]
+    retraction_dists = [start_distance + increment * i for i in range(16)]
 
     return [
         "Retraction Distance from the top looking down",
