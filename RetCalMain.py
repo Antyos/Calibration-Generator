@@ -386,7 +386,7 @@ def generate_header(config: GcodeConfig) -> list[str]:
 
 def generate_retraction_calibration(config: GcodeConfig) -> list[str]:
     """Get the full set of gcode for the retraction calibration test."""
-    gcode = generate_header(config)
+    gcode = [f";{line}" for line in generate_header(config)]
 
     # Print out starting gcode
     gcode.extend(start_gcode(config))
