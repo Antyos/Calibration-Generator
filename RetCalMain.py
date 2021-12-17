@@ -55,34 +55,26 @@ def retraction_distance_diagram(start_distance: float, increment: float) -> list
         "Retraction Distance from the top looking down",
         "",
         # Add top row of numbers
-        " " * 10
+        f"{'':10}"
         + "  ".join(f"{dist:<6.2f}" for dist in retraction_dists[11 : 8 - 1 : -1]),
         # Print top row of bars
-        " " * 10 + f"{'|':8}" * 4,
+        f"{'':10}" + f"{'|':8}" * 4,
         # Side rows
-        f"{retraction_dists[12]:6.2f} -  "
-        + " " * 32
-        + f"- {retraction_dists[7]:<6.2f}",
+        f"{retraction_dists[12]:6.2f} -  {'':32}- {retraction_dists[7]:<6.2f}",
         "",
         "",
-        f"{retraction_dists[13]:6.2f} -  "
-        + " " * 32
-        + f"- {retraction_dists[6]:<6.2f}",
+        f"{retraction_dists[13]:6.2f} -  {'':32}- {retraction_dists[6]:<6.2f}",
         "",
         "",
-        f"{retraction_dists[14]:6.2f} -  "
-        + " " * 32
-        + f"- {retraction_dists[5]:<6.2f}",
+        f"{retraction_dists[14]:6.2f} -  {'':32}- {retraction_dists[5]:<6.2f}",
         "",
         "",
-        f"{retraction_dists[15]:6.2f} -  "
-        + " " * 32
-        + f"- {retraction_dists[4]:<6.2f}",
+        f"{retraction_dists[15]:6.2f} -  {'':32}- {retraction_dists[4]:<6.2f}",
         "",
         # Print bottom row of bars
-        " " * 10 + f"{'|':8}" * 4,
+        f"{'':10}" + f"{'|':8}" * 4,
         # Print bottom for of numbers
-        " " * 10 + "  ".join(f"{dist:<6.2f}" for dist in retraction_dists[:4]),
+        f"{'':10}" + "  ".join(f"{dist:<6.2f}" for dist in retraction_dists[:4]),
     ]
 
 
@@ -371,7 +363,7 @@ def generate_header(config: GcodeConfig) -> list[str]:
         "",
         "",
     ]
-    
+
     # Retraction distance diagram
     header.extend(
         retraction_distance_diagram(
