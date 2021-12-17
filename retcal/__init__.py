@@ -1,4 +1,4 @@
-from config import GcodeConfig
+from .config import GcodeConfig
 
 __all__ = [
     "GcodeConfig",
