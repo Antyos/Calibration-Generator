@@ -34,22 +34,27 @@ class GcodeCommand(Gcode):
 
 
 class GcodeRapidMove(GcodeCommand):
+    """G0: Rapid move."""
     command = "G0"
 
 
 class GcodeLinearMove(GcodeCommand):
+    """G1: Linear move."""
     command = "G1"
 
 
 class GcodeUseAbsolutePositioning(GcodeCommand):
+    """G90: Use Absolute positioning."""
     command = "G90"
 
 
 class GcodeUseIncrementalPositioning(GcodeCommand):
+    """G91: Use incremental positioning."""
     command = "G91"
 
 
 class GcodeSetPosition(GcodeCommand):
+    """G92: Set position."""
     command = "G92"
 
 
