@@ -232,7 +232,7 @@ def button_clicked(ui: Ui_MainWindow):
         'Save Gcode',
         filter="(*.gcode)"
     )
-    
+
     # Return if no file name
     if len(name[0]) == 0:
         return
