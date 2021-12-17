@@ -7,6 +7,7 @@ authors = ["prahjister <prahjister0@gmail.com>"]
 [tool.poetry.dependencies]
 python = ">=3.9, <3.10"
 pyqt5ac = "^1.2.1"
+euclid = "^1.2"
 
 
 [tool.poetry.dev-dependencies]
