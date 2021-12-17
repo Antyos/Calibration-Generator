@@ -1,106 +1,117 @@
-from .config import GcodeConfig
-from .calibration_header import generate_header
-from .calibration_tower import layer_group
+from retcal.calibration_header import generate_header
+from retcal.calibration_tower import layer_group
+from retcal.config import GcodeConfig
+from retcal.gcode import (
+    Comment,
+    Gcode,
+    GcodeLinearMove,
+    GcodeMisc,
+    GcodeRapidMove,
+    GcodeSetPosition,
+    GcodeUseAbsolutePositioning,
+    GcodeUseIncrementalPositioning,
+    TGcode,
+)
 
-def start_gcode(config) -> list[str]:
+
+def start_gcode(config) -> list[TGcode]:
     """Gcode to start a print"""
     return [
-        "; Start Gcode",
-        f"M140 S{int(config.bed_temp)}",
-        "M105",
-        f"M190 S{int(config.bed_temp)}",
-        f"M104 S{int(config.hotend_temp_init)}",
-        "M105",
-        f"M109 S{int(config.hotend_temp_init)}",
-        "M82",
-        "G28",
-        "G92 E0",
-        "G1 F200 E1",
-        "G92 E0",
-        f"{config.custom_gcode}",
-        ";",
-        ";",
+        Comment("Start Gcode"),
+        Gcode("M140", S=int(config.bed_temp)),
+        Gcode("M105"),
+        Gcode("M190", S=int(config.bed_temp)),
+        Gcode("M104", S=int(config.hotend_temp_init)),
+        Gcode("M105"),
+        Gcode("M109", S=int(config.hotend_temp_init)),
+        Gcode("M82"),
+        Gcode("G28"),
+        GcodeSetPosition(E=0),
+        GcodeLinearMove(F=200, E=1),
+        GcodeSetPosition(E=0),
+        GcodeMisc(config.custom_gcode),
+        Comment(),
+        Comment(),
     ]
 
 
-def raft_gcode(config) -> list[str]:
+def raft_gcode(config: GcodeConfig) -> list[TGcode]:
     """Generate raft Gcode"""
     xpos = config.bed_shape_x / 2 - 30
     ypos = config.bed_shape_y / 2 - 30
     zpos = config.layer_height
-    epos = 0
-
-    gcode = [
-        "; Start Movement",
-        ";",
-        "G1 Z2",
-        f"G1 F{config.travel_speed} X{xpos} Y{ypos} Z{zpos}",
-        ";",
-    ]
     # Overextruding Raft
     e_raft = config.get_e_value(60)
 
-    remx = xpos
-    remy = ypos
+    gcode: list[TGcode] = [
+        Comment("Start Movement"),
+        Comment(),
+        GcodeUseAbsolutePositioning(),
+        GcodeLinearMove("G1", Z=2),
+        GcodeLinearMove("G1", F=config.travel_speed, X=xpos, Y=ypos, Z=zpos),
+        GcodeUseIncrementalPositioning(),
+        Comment(),
+    ]
 
-    # Horizontal
-    gcode.append("; Layer 1")
+    # Horizontal part of raft
+    gcode.append(Comment("Layer 1"))
     for _ in range(30):
-        epos += e_raft
-        gcode.append(f"G1 F{config.print_speed//2} X{xpos+60} Y{ypos} E{epos:.5f}")
-        xpos += 60
-        epos += e_raft
-        gcode.append(f"G0 F{config.travel_speed} X{xpos} Y{ypos+1}")
-        ypos += 1
-        gcode.append(f"G1 F{config.print_speed//2} X{xpos-60} Y{ypos} E{epos:.5f}")
-        xpos -= 60
-        epos += e_raft
-        gcode.append(f"G0 F{config.travel_speed} X{xpos} Y{ypos+1}")
-        ypos += 1
+        gcode.extend(
+            [
+                GcodeLinearMove(F=config.print_speed // 2, X=60, E=e_raft),
+                GcodeRapidMove(F=config.travel_speed, Y=1),
+                GcodeLinearMove(F=config.print_speed // 2, X=-60, E=e_raft),
+                GcodeRapidMove(F=config.travel_speed, Y=1),
+            ]
+        )
 
     # Bring back to raft origin
-    gcode.append(
-        f"G0 F{config.travel_speed} X{xpos} Y{ypos} Z{config.layer_height*3:.2f}"
+    gcode.extend(
+        [
+            GcodeUseAbsolutePositioning(),
+            GcodeRapidMove(
+                F=config.travel_speed, X=xpos, Y=ypos, Z=config.layer_height * 3
+            ),
+            GcodeRapidMove(F=config.travel_speed, Z=config.layer_height * 2),
+            GcodeUseIncrementalPositioning(),
+        ]
     )
-    gcode.append(
-        f"G0 F{config.travel_speed} X{remx} Y{remy} Z{config.layer_height+config.layer_height}"
-    )
-    xpos = remx
-    ypos = remy
 
-    # Vertical
-    gcode.append(";Layer 2")
+    # Vertical part of raft
+    gcode.append(Comment("Layer 2"))
     for _ in range(30):
-        epos += e_raft
-        gcode.append(f"G1 F{config.print_speed//2} X{xpos} Y{ypos+60} E{epos:.5f}")
-        ypos += 60
-        epos += e_raft
-        gcode.append(f"G0 F{config.travel_speed} X{xpos+1} Y{ypos}")
-        xpos += 1
-        gcode.append(f"G1 F{config.print_speed//2} X{xpos} Y{ypos-60} E{epos:.5f}")
-        ypos -= 60
-        epos += e_raft
-        gcode.append(f"G0 F{config.travel_speed} X{xpos+1} Y{ypos}")
-        xpos += 1
+        gcode.extend(
+            [
+                GcodeLinearMove(F=config.print_speed // 2, Y=60, E=e_raft),
+                GcodeRapidMove(F=config.travel_speed, X=1),
+                GcodeLinearMove(F=config.print_speed // 2, Y=-60, E=e_raft),
+                GcodeRapidMove(F=config.travel_speed, X=1),
+            ]
+        )
 
     # Bring back to Calibration Starting Position
-    gcode.append(
-        f"G0 F{config.travel_speed} X{remx+5} Y{remy+5} Z{config.layer_height*3:.2f}"
+    gcode.extend(
+        [
+            GcodeUseAbsolutePositioning(),
+            GcodeRapidMove(
+                F=config.travel_speed, X=xpos + 5, Y=ypos + 5, Z=config.layer_height * 3
+            ),
+            GcodeUseIncrementalPositioning(),
+        ]
     )
 
     return gcode
 
 
-
 def generate_retraction_calibration(config: GcodeConfig) -> list[str]:
     """Get the full set of gcode for the retraction calibration test."""
-    gcode = [f";{line}" for line in generate_header(config)]
+    gcode = [line for line in generate_header(config)]
 
     # Print out starting gcode
-    gcode.extend(start_gcode(config))
+    gcode.extend(map(str, start_gcode(config)))
 
     # Write raft gcode to file
-    gcode.extend(raft_gcode(config))
+    gcode.extend(map(str, raft_gcode(config)))
 
     # Relative Movements
     gcode.extend(["M83", "G91"])
