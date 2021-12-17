@@ -1,5 +1,6 @@
 from dataclasses import asdict
-from .config import GcodeConfig
+from retcal.config import GcodeConfig
+from retcal.gcode import Comment
 
 def retraction_distance_diagram(start_distance: float, increment: float) -> list[str]:
     """Create a top-down diagram of the retraction distances."""
@@ -54,7 +55,7 @@ def variables_by_height(config: GcodeConfig) -> list[str]:
     return [s.strip() for s in _str]
 
 
-def generate_header(config: GcodeConfig) -> list[str]:
+def generate_header(config: GcodeConfig) -> list[Comment]:
     """Generate the retraction calibration header."""
     title_str = "Calibration Generator 1.3.3"
     header = [
@@ -80,4 +81,4 @@ def generate_header(config: GcodeConfig) -> list[str]:
     header.extend([f"{key} = {value}" for key, value in asdict(config).values()])
     header.extend(["", ""])
 
-    return header
+    return [Comment(line) for line in header]
