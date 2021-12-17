@@ -20,18 +20,25 @@ class Gcode:
 
         return " ".join(parts)
 
-class GcodeMotion(Gcode):
+class GcodeCommand(Gcode):
     def __init__(self, *args, **params):
         command = getattr(self, "command", "")
         super().__init__(command, *args, **params)
 
-class GcodeRapidMove(GcodeMotion):
+class GcodeRapidMove(GcodeCommand):
     command = "G0"
 
-class GcodeLinearMove(GcodeMotion):
+class GcodeLinearMove(GcodeCommand):
     command = "G1"
     
+class GcodeUseAbsolutePositioning(GcodeCommand):
+    command = "G90"
 
+class GcodeUseIncrementalPositioning(GcodeCommand):
+    command = "G91"
+
+class GcodeSetPosition(GcodeCommand):
+    command = "G92"
 
 class Comment:
     """Generic Gcode comment"""
