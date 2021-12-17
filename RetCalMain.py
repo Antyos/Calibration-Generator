@@ -226,6 +226,95 @@ def single_layer(config: GcodeConfig, big_section_num: int) -> list[str]:
 
     return gcode
 
+
+def corner_marker(patterns: list[str], print_speed, e_speed) -> list[str]:
+    return [f"G1 F{print_speed} {pattern} E{e_speed:.5f}" for pattern in patterns]
+
+
+def layer_group(config: GcodeConfig, big_section_num: int, start_layer: int) -> list[str]:
+    """Generate a block of layers"""
+    print_speed = config.print_speed
+    travel_speed = config.travel_speed
+    e_value = config.get_e_value(10)
+    e_corner = config.get_e_value(1)
+    f_value = config.retraction_speed_init + config.retraction_speed_delta * big_section_num * 60
+    dist_init = config.retraction_dist_init
+    dist_delta = config.retraction_dist_delta
+    layer_height = config.layer_height
+
+    layer_num = start_layer + big_section_num * config.layers_per_test
+
+    gcode = [
+        # Set Fan every 15 layers
+        f"M106 S{(config.fan_speed_init+config.fan_speed_delta*big_section_num) * 255 / 100:d}",
+        f"M104 S{config.hotend_temp_init+config.hotend_temp_change*big_section_num:d}",
+        f";Layer {layer_num}",
+    ]
+
+    #Layer Marker Bottom Left
+    gcode.extend(corner_marker(['X-2', 'Y-2', 'X2', 'Y2'], print_speed, e_corner))
+
+    #Bottom
+    for i in range(0+0, 4+0):
+        gcode.extend([
+            f"G1 F{print_speed} X10 E{e_value:.5f}",
+            f"G1 E{-(dist_init+dist_delta*i):.2f} F{f_value:.2f}",
+            f"G0 F{travel_speed} Y-10",
+            f"G0 F{travel_speed} Y10",
+            f"G1 E{(dist_init+dist_delta*i):.2f} F{f_value:.2f}",
+        ])
+
+    #Layer Marker Bottom Right
+    gcode.extend(corner_marker(['X1', 'Y-1', 'X-1', 'Y1'], print_speed, e_corner))
+
+    #Right
+    for i in range(0+4, 4+4):
+        gcode.extend([
+            f"G1 F{print_speed} Y10 E{e_value:.5f}",
+            f"G1 E{-(dist_init+dist_delta*i):.2f} F{f_value:.2f}",
+            f"G0 F{travel_speed} X10",
+            f"G0 F{travel_speed} X-10",
+            f"G1 E{(dist_init+dist_delta*i):.2f} F{f_value:.2f}",
+        ])
+
+    #Layer Marker Top Right
+    gcode.extend(corner_marker(['X1', 'Y1', 'X-1', 'Y-1'], print_speed, e_corner))
+
+    #Top
+    for i in range(0+8, 4+8):
+        gcode.extend([
+            f"G1 F{print_speed} X-10 E{e_value:.5f}",
+            f"G1 E{-(dist_init+dist_delta*i):.2f} F{f_value:.2f}",
+            f"G0 F{travel_speed} Y10",
+            f"G0 F{travel_speed} Y-10",
+            f"G1 E{(dist_init+dist_delta*i):.2f} F{f_value:.2f}",
+        ])
+
+    #Layer Marker Top Left
+    gcode.extend(corner_marker(['X-1', 'Y1', 'X1', 'Y-1'], print_speed, e_corner))
+
+    #Left
+    for i in range(0+12, 4+12):
+        gcode.extend([
+            f"G1 F{print_speed} Y-10 E{e_value:.5f}",
+            f"G1 E{-(dist_init+dist_delta*i):.2f} F{f_value:.2f}",
+            f"G0 F{travel_speed} X-10",
+            f"G0 F{travel_speed} X10",
+            f"G1 E{(dist_init+dist_delta*i):.2f} F{f_value:.2f}",
+        ])
+
+    #Zup layer height
+    gcode.append(f"G1 Z{layer_height}")
+
+    # Do the rest of the layers without the loops
+    for layer in range(config.layers_per_test - 1):
+        gcode.append(f";Layer {layer_num+layer}")
+        gcode.extend(single_layer(config, big_section_num))
+        gcode.append(f"G1 Z{config.layer_height}")
+
+    return gcode
+
+
 def button_clicked(ui: Ui_MainWindow):
     name = QtWidgets.QFileDialog.getSaveFileName(
         ui.centralwidget,
@@ -301,162 +390,9 @@ def button_clicked(ui: Ui_MainWindow):
     file.write(f"M83\n")
     file.write(f"G91\n")
 
-    #Start Calibration
-
-    eValueresult = cfg.get_e_value(10)
-    corenermarker = cfg.get_e_value(1)
-
-    loopbigcount = 0
-    loopsmallcount = 0
-
-    layer = 3
-
-    cnt = int(cfg.num_tests)
-    cfg.layers_per_test -= 1
-
-    for loopbig in range(int(cnt)):
-
-    # Set Fan every 15 layers
-        file.write(f"M106 S{(round(Decimal((cfg.fan_speed_init+cfg.fan_speed_delta*loopbigcount)) * 255 / 100,0))  }\n")
-        file.write(f"M104 S{round(Decimal(cfg.hotend_temp_init+cfg.hotend_temp_change*loopbigcount),0)}\n")
-
-        file.write(f";Layer {layer}\n")
-
-        #Layer Marker Bottom Left
-        file.write(f"G1 F{cfg.print_speed} X-2 E{round(Decimal(corenermarker),5)}\n")
-        file.write(f"G1 F{cfg.print_speed} Y-2 E{round(Decimal(corenermarker),5)}\n")
-        file.write(f"G1 F{cfg.print_speed} X2 E{round(Decimal(corenermarker),5)}\n")
-        file.write(f"G1 F{cfg.print_speed} Y2 E{round(Decimal(corenermarker),5)}\n")
-
-
-        #Begin
-
-        #Bottom
-        file.write(f"G1 F{cfg.print_speed} X10 E{round(Decimal(eValueresult),5)}\n")
-        file.write(f"G1 E{round(Decimal(cfg.retraction_dist_init+cfg.retraction_dist_delta*0),2) * -1} F{round(Decimal((cfg.retraction_speed_init+cfg.retraction_speed_delta*loopbigcount) * 60),2)}\n")
-        file.write(f"G0 F{cfg.travel_speed} Y-10\n")
-        file.write(f"G0 F{cfg.travel_speed} Y10\n")
-        file.write(f"G1 E{round(Decimal(cfg.retraction_dist_init+cfg.retraction_dist_delta*0),2)} F{round(Decimal((cfg.retraction_speed_init+cfg.retraction_speed_delta*loopbigcount) * 60),2)}\n")
-        file.write(f"G1 F{cfg.print_speed} X10 E{round(Decimal(eValueresult),5)}\n")
-        file.write(f"G1 E{round(Decimal(cfg.retraction_dist_init+cfg.retraction_dist_delta*1),2) * -1} F{round(Decimal((cfg.retraction_speed_init+cfg.retraction_speed_delta*loopbigcount) * 60),2)}\n")
-        file.write(f"G0 F{cfg.travel_speed} Y-10\n")
-        file.write(f"G0 F{cfg.travel_speed} Y10\n")
-        file.write(f"G1 E{round(Decimal(cfg.retraction_dist_init+cfg.retraction_dist_delta*1),2)} F{round(Decimal((cfg.retraction_speed_init+cfg.retraction_speed_delta*loopbigcount) * 60),2)}\n")
-        file.write(f"G1 F{cfg.print_speed} X10 E{round(Decimal(eValueresult),5)}\n")
-        file.write(f"G1 E{round(Decimal(cfg.retraction_dist_init+cfg.retraction_dist_delta*2),2) * -1} F{round(Decimal((cfg.retraction_speed_init+cfg.retraction_speed_delta*loopbigcount) * 60),2)}\n")
-        file.write(f"G0 F{cfg.travel_speed} Y-10\n")
-        file.write(f"G0 F{cfg.travel_speed} Y10\n")
-        file.write(f"G1 E{round(Decimal(cfg.retraction_dist_init+cfg.retraction_dist_delta*2),2)} F{round(Decimal((cfg.retraction_speed_init+cfg.retraction_speed_delta*loopbigcount) * 60),2)}\n")
-        file.write(f"G1 F{cfg.print_speed} X10 E{round(Decimal(eValueresult),5)}\n")
-        file.write(f"G1 E{round(Decimal(cfg.retraction_dist_init+cfg.retraction_dist_delta*3),2) * -1} F{round(Decimal((cfg.retraction_speed_init+cfg.retraction_speed_delta*loopbigcount) * 60),2)}\n")
-        file.write(f"G0 F{cfg.travel_speed} Y-10\n")
-        file.write(f"G0 F{cfg.travel_speed} Y10\n")
-        file.write(f"G1 E{round(Decimal(cfg.retraction_dist_init+cfg.retraction_dist_delta*3),2)} F{round(Decimal((cfg.retraction_speed_init+cfg.retraction_speed_delta*loopbigcount) * 60),2)}\n")
-        file.write(f"G1 F{cfg.print_speed} X10 E{round(Decimal(eValueresult),5)}\n")
-
-        #Layer Marker Bottom Right
-        file.write(f"G1 F{cfg.print_speed} X1 E{round(Decimal(corenermarker),5)}\n")
-        file.write(f"G1 F{cfg.print_speed} Y-1 E{round(Decimal(corenermarker),5)}\n")
-        file.write(f"G1 F{cfg.print_speed} X-1 E{round(Decimal(corenermarker),5)}\n")
-        file.write(f"G1 F{cfg.print_speed} Y1 E{round(Decimal(corenermarker),5)}\n")
-
-        #Right
-        file.write(f"G1 F{cfg.print_speed} Y10 E{round(Decimal(eValueresult),5)}\n")
-        file.write(f"G1 E{round(Decimal(cfg.retraction_dist_init+cfg.retraction_dist_delta*4),2) * -1} F{round(Decimal((cfg.retraction_speed_init+cfg.retraction_speed_delta*loopbigcount) * 60),2)}\n")
-        file.write(f"G0 F{cfg.travel_speed} X10\n")
-        file.write(f"G0 F{cfg.travel_speed} X-10\n")
-        file.write(f"G1 E{round(Decimal(cfg.retraction_dist_init+cfg.retraction_dist_delta*4),2)} F{round(Decimal((cfg.retraction_speed_init+cfg.retraction_speed_delta*loopbigcount) * 60),2)}\n")
-        file.write(f"G1 F{cfg.print_speed} Y10 E{round(Decimal(eValueresult),5)}\n")
-        file.write(f"G1 E{round(Decimal(cfg.retraction_dist_init+cfg.retraction_dist_delta*5),2) * -1} F{round(Decimal((cfg.retraction_speed_init+cfg.retraction_speed_delta*loopbigcount) * 60),2)}\n")
-        file.write(f"G0 F{cfg.travel_speed} X10\n")
-        file.write(f"G0 F{cfg.travel_speed} X-10\n")
-        file.write(f"G1 E{round(Decimal(cfg.retraction_dist_init+cfg.retraction_dist_delta*5),2)} F{round(Decimal((cfg.retraction_speed_init+cfg.retraction_speed_delta*loopbigcount) * 60),2)}\n")
-        file.write(f"G1 F{cfg.print_speed} Y10 E{round(Decimal(eValueresult),5)}\n")
-        file.write(f"G1 E{round(Decimal(cfg.retraction_dist_init+cfg.retraction_dist_delta*6),2) * -1} F{round(Decimal((cfg.retraction_speed_init+cfg.retraction_speed_delta*loopbigcount) * 60),2)}\n")
-        file.write(f"G0 F{cfg.travel_speed} X10\n")
-        file.write(f"G0 F{cfg.travel_speed} X-10\n")
-        file.write(f"G1 E{round(Decimal(cfg.retraction_dist_init+cfg.retraction_dist_delta*6),2)} F{round(Decimal((cfg.retraction_speed_init+cfg.retraction_speed_delta*loopbigcount) * 60),2)}\n")
-        file.write(f"G1 F{cfg.print_speed} Y10 E{round(Decimal(eValueresult),5)}\n")
-        file.write(f"G1 E{round(Decimal(cfg.retraction_dist_init+cfg.retraction_dist_delta*7),2) * -1} F{round(Decimal((cfg.retraction_speed_init+cfg.retraction_speed_delta*loopbigcount) * 60),2)}\n")
-        file.write(f"G0 F{cfg.travel_speed} X10\n")
-        file.write(f"G0 F{cfg.travel_speed} X-10\n")
-        file.write(f"G1 E{round(Decimal(cfg.retraction_dist_init+cfg.retraction_dist_delta*7),2)} F{round(Decimal((cfg.retraction_speed_init+cfg.retraction_speed_delta*loopbigcount) * 60),2)}\n")
-        file.write(f"G1 F{cfg.print_speed} Y10 E{round(Decimal(eValueresult),5)}\n")
-
-        #Layer Marker Top Right
-        file.write(f"G1 F{cfg.print_speed} X1 E{round(Decimal(corenermarker),5)}\n")
-        file.write(f"G1 F{cfg.print_speed} Y1 E{round(Decimal(corenermarker),5)}\n")
-        file.write(f"G1 F{cfg.print_speed} X-1 E{round(Decimal(corenermarker),5)}\n")
-        file.write(f"G1 F{cfg.print_speed} Y-1 E{round(Decimal(corenermarker),5)}\n")
-
-        #Top
-        file.write(f"G1 F{cfg.print_speed} X-10 E{round(Decimal(eValueresult),5)}\n")
-        file.write(f"G1 E{round(Decimal(cfg.retraction_dist_init+cfg.retraction_dist_delta*8),2) * -1} F{round(Decimal((cfg.retraction_speed_init+cfg.retraction_speed_delta*loopbigcount) * 60),2)}\n")
-        file.write(f"G0 F{cfg.travel_speed} Y10\n")
-        file.write(f"G0 F{cfg.travel_speed} Y-10\n")
-        file.write(f"G1 E{round(Decimal(cfg.retraction_dist_init+cfg.retraction_dist_delta*8),2)} F{round(Decimal((cfg.retraction_speed_init+cfg.retraction_speed_delta*loopbigcount) * 60),2)}\n")
-        file.write(f"G1 F{cfg.print_speed} X-10 E{round(Decimal(eValueresult),5)}\n")
-        file.write(f"G1 E{round(Decimal(cfg.retraction_dist_init+cfg.retraction_dist_delta*9),2) * -1} F{round(Decimal((cfg.retraction_speed_init+cfg.retraction_speed_delta*loopbigcount) * 60),2)}\n")
-        file.write(f"G0 F{cfg.travel_speed} Y10\n")
-        file.write(f"G0 F{cfg.travel_speed} Y-10\n")
-        file.write(f"G1 E{round(Decimal(cfg.retraction_dist_init+cfg.retraction_dist_delta*9),2)} F{round(Decimal((cfg.retraction_speed_init+cfg.retraction_speed_delta*loopbigcount) * 60),2)}\n")
-        file.write(f"G1 F{cfg.print_speed} X-10 E{round(Decimal(eValueresult),5)}\n")
-        file.write(f"G1 E{round(Decimal(cfg.retraction_dist_init+cfg.retraction_dist_delta*10),2) * -1} F{round(Decimal((cfg.retraction_speed_init+cfg.retraction_speed_delta*loopbigcount) * 60),2)}\n")
-        file.write(f"G0 F{cfg.travel_speed} Y10\n")
-        file.write(f"G0 F{cfg.travel_speed} Y-10\n")
-        file.write(f"G1 E{round(Decimal(cfg.retraction_dist_init+cfg.retraction_dist_delta*10),2)} F{round(Decimal((cfg.retraction_speed_init+cfg.retraction_speed_delta*loopbigcount) * 60),2)}\n")
-        file.write(f"G1 F{cfg.print_speed} X-10 E{round(Decimal(eValueresult),5)}\n")
-        file.write(f"G1 E{round(Decimal(cfg.retraction_dist_init+cfg.retraction_dist_delta*11),2) * -1} F{round(Decimal((cfg.retraction_speed_init+cfg.retraction_speed_delta*loopbigcount) * 60),2)}\n")
-        file.write(f"G0 F{cfg.travel_speed} Y10\n")
-        file.write(f"G0 F{cfg.travel_speed} Y-10\n")
-        file.write(f"G1 E{round(Decimal(cfg.retraction_dist_init+cfg.retraction_dist_delta*11),2)} F{round(Decimal((cfg.retraction_speed_init+cfg.retraction_speed_delta*loopbigcount) * 60),2)}\n")
-        file.write(f"G1 F{cfg.print_speed} X-10 E{round(Decimal(eValueresult),5)}\n")
-
-        #Layer Marker Top Left
-        file.write(f"G1 F{cfg.print_speed} X-1 E{round(Decimal(corenermarker),5)}\n")
-        file.write(f"G1 F{cfg.print_speed} Y1 E{round(Decimal(corenermarker),5)}\n")
-        file.write(f"G1 F{cfg.print_speed} X1 E{round(Decimal(corenermarker),5)}\n")
-        file.write(f"G1 F{cfg.print_speed} Y-1 E{round(Decimal(corenermarker),5)}\n")
-
-        #Left
-        file.write(f"G1 F{cfg.print_speed} Y-10 E{round(Decimal(eValueresult),5)}\n")
-        file.write(f"G1 E{round(Decimal(cfg.retraction_dist_init+cfg.retraction_dist_delta*12),2) * -1} F{round(Decimal((cfg.retraction_speed_init+cfg.retraction_speed_delta*loopbigcount) * 60),2)}\n")
-        file.write(f"G0 F{cfg.travel_speed} X-10\n")
-        file.write(f"G0 F{cfg.travel_speed} X10\n")
-        file.write(f"G1 E{round(Decimal(cfg.retraction_dist_init+cfg.retraction_dist_delta*12),2)} F{round(Decimal((cfg.retraction_speed_init+cfg.retraction_speed_delta*loopbigcount) * 60),2)}\n")
-        file.write(f"G1 F{cfg.print_speed} Y-10 E{round(Decimal(eValueresult),5)}\n")
-        file.write(f"G1 E{round(Decimal(cfg.retraction_dist_init+cfg.retraction_dist_delta*13),2) * -1} F{round(Decimal((cfg.retraction_speed_init+cfg.retraction_speed_delta*loopbigcount) * 60),2)}\n")
-        file.write(f"G0 F{cfg.travel_speed} X-10\n")
-        file.write(f"G0 F{cfg.travel_speed} X10\n")
-        file.write(f"G1 E{round(Decimal(cfg.retraction_dist_init+cfg.retraction_dist_delta*13),2)} F{round(Decimal((cfg.retraction_speed_init+cfg.retraction_speed_delta*loopbigcount) * 60),2)}\n")
-        file.write(f"G1 F{cfg.print_speed} Y-10 E{round(Decimal(eValueresult),5)}\n")
-        file.write(f"G1 E{round(Decimal(cfg.retraction_dist_init+cfg.retraction_dist_delta*14),2) * -1} F{round(Decimal((cfg.retraction_speed_init+cfg.retraction_speed_delta*loopbigcount) * 60),2)}\n")
-        file.write(f"G0 F{cfg.travel_speed} X-10\n")
-        file.write(f"G0 F{cfg.travel_speed} X10\n")
-        file.write(f"G1 E{round(Decimal(cfg.retraction_dist_init+cfg.retraction_dist_delta*14),2)} F{round(Decimal((cfg.retraction_speed_init+cfg.retraction_speed_delta*loopbigcount) * 60),2)}\n")
-        file.write(f"G1 F{cfg.print_speed} Y-10 E{round(Decimal(eValueresult),5)}\n")
-        file.write(f"G1 E{round(Decimal(cfg.retraction_dist_init+cfg.retraction_dist_delta*15),2) * -1} F{round(Decimal((cfg.retraction_speed_init+cfg.retraction_speed_delta*loopbigcount) * 60),2)}\n")
-        file.write(f"G0 F{cfg.travel_speed} X-10\n")
-        file.write(f"G0 F{cfg.travel_speed} X10\n")
-        file.write(f"G1 E{round(Decimal(cfg.retraction_dist_init+cfg.retraction_dist_delta*15),2)} F{round(Decimal((cfg.retraction_speed_init+cfg.retraction_speed_delta*loopbigcount) * 60),2)}\n")
-        file.write(f"G1 F{cfg.print_speed} Y-10 E{round(Decimal(eValueresult),5)}\n")
-
-        #Zup layer height
-
-        file.write(f"G1 Z{cfg.layer_height}\n")
-             
-        # loopbigcount = loopbigcount +1
-        layer += 1
-
-
-        for _ in range(cfg.layers_per_test):
-            file.write(f";Layer {layer}\n")
-            file.write("\n".join(single_layer(cfg, loopbigcount)))
-            file.write(f"G1 Z{cfg.layer_height}")
-            layer += 1
-
-        loopbigcount = loopbigcount +1
-
+    # Tower
+    for test_num in range(cfg.num_tests):
+        file.write("\n".join(layer_group(cfg, test_num, 3)) + "\n")
 
     # Ending Gcode
     end_gcode = [
